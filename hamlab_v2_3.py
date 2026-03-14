@@ -20,6 +20,7 @@ import tempfile
 import urllib.request
 import urllib.error
 import zipfile
+import subprocess
 from dataclasses import dataclass, asdict
 
 try:
@@ -29,7 +30,7 @@ except ImportError:
 
 # --- THEME CONFIGURATION ---
 APP_NAME = "HAM LAB SMART CONTROLLER"
-APP_VERSION = "v2.4.4"
+APP_VERSION = "v2.4.5"
 GITHUB_REPO = "anshubhawsar/Hamlab_controller"
 GITHUB_LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 GITHUB_RELEASES_PAGE = f"https://github.com/{GITHUB_REPO}/releases"
@@ -37,37 +38,138 @@ BASE_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else
 DOC_PDF_PATH = os.path.join(BASE_DIR, "docs", "HAMLAB_Documentation.pdf")
 LOGO_PATH = os.path.join(BASE_DIR, "image.png")
 
-ctk.set_appearance_mode("Light")
+# Keep theme in an env variable so it survives a fast UI reload.
+THEME_ENV_KEY = "HAMLAB_THEME"
+DEFAULT_THEME_MODE = os.environ.get(THEME_ENV_KEY, "light").strip().lower()
+if DEFAULT_THEME_MODE not in ("light", "dark"):
+    DEFAULT_THEME_MODE = "light"
+
+ctk.set_appearance_mode("Dark" if DEFAULT_THEME_MODE == "dark" else "Light")
 ctk.set_default_color_theme("blue")
+ctk.set_widget_scaling(1.18)
+ctk.set_window_scaling(1.06)
 
-# --- UNIFIED COLOR PALETTE (Classic Light Theme) ---
-COLOR_BG_PRIMARY = "#f8f9fa"      # Light background
-COLOR_BG_SECONDARY = "#ffffff"    # Card/panel background
-COLOR_BG_SIDEBAR = "#e8eef5"      # Sidebar background
-COLOR_BORDER_LIGHT = "#d0d0d0"    # Border color
+# --- PREMIUM COLOR PALETTES (Light & Dark) ---
+THEMES = {
+    "light": {
+        # LIGHT MODE: Clean, Professional, High Contrast
+        "bg_primary": "#f5f7fa",           # Soft light gray background
+        "bg_secondary": "#ffffff",         # Pure white for cards
+        "bg_sidebar": "#e8ecf1",           # Light blue-gray sidebar
+        "bg_tertiary": "#f0f3f8",          # Tertiary backgrounds
+        "border_light": "#d1d8e0",         # Professional subtle borders
+        "text_primary": "#0d1b2a",         # Deep navy - excellent readability
+        "text_secondary": "#3d4756",       # Medium blue-gray
+        "text_dim": "#6b7684",             # Lighter gray
+        "card_shadow": "#e0e6ed",          # Shadow color for cards
+        "accent_blue": "#0052cc",          # Classic strong blue
+        "accent_blue_light": "#e3f0ff",    # Light blue background
+        "accent_green": "#216e4e",         # Forest green (classic)
+        "accent_green_light": "#dffcf0",   # Very light green
+        "accent_orange": "#974f0c",        # Warm burnt orange (classic)
+        "accent_orange_light": "#fef3e6",  # Light orange
+        "accent_red": "#ae2a19",           # Classic deep red
+        "accent_red_light": "#fde7e7",     # Light red
+        "nav_inactive_bg": "#ffffff",      # Nav buttons white
+        "nav_inactive_hover": "#e8ecf1",   # Nav hover light
+        "nav_active_text": "#ffffff",      # Nav active text
+        "update_btn": "#2d6f3e",           # Classic green button
+        "update_btn_hover": "#1f5329",     # Darker green on hover
+        "input_bg": "#ffffff",             # Input field background white
+        "input_text": "#0d1b2a",           # Input text deep navy
+        "input_border": "#b3bcc8",         # Subtle input border
+        "input_placeholder": "#8b949e",    # Placeholder text
+    },
+    "dark": {
+        # DARK MODE: Premium Dark, Maximum Contrast, Vibrant Accents
+        "bg_primary": "#0f1419",           # Deep charcoal background
+        "bg_secondary": "#1a1f26",         # Slightly elevated surface
+        "bg_sidebar": "#131820",           # Darker sidebar
+        "bg_tertiary": "#232a34",          # Tertiary backgrounds
+        "border_light": "#3a4251",         # Subtle dark borders
+        "text_primary": "#f0f4f8",         # Bright cool white - high contrast
+        "text_secondary": "#c8d1d9",       # Light gray text
+        "text_dim": "#8b949e",             # Medium-light gray
+        "card_shadow": "#0a1117",          # Deep shadow
+        "accent_blue": "#58a6ff",          # Vibrant bright blue
+        "accent_blue_light": "#0d3a66",    # Dark blue background
+        "accent_green": "#3fb950",         # Bright vibrant green
+        "accent_green_light": "#0d4d2c",   # Dark green background
+        "accent_orange": "#fb8500",        # Vibrant high-visibility orange
+        "accent_orange_light": "#3d2817",  # Dark orange background
+        "accent_red": "#ff7b72",           # Bright vibrant red
+        "accent_red_light": "#3d1f1f",     # Dark red background
+        "nav_inactive_bg": "#1a1f26",      # Nav buttons surface
+        "nav_inactive_hover": "#2d333b",   # Nav hover darker surface
+        "nav_active_text": "#ffffff",      # Nav active text bright
+        "update_btn": "#238636",           # Vibrant dark-mode green
+        "update_btn_hover": "#2ea043",     # Brighter on hover
+        "input_bg": "#2d333b",             # Input field dark background
+        "input_text": "#f0f4f8",           # Input text bright white
+        "input_border": "#444c56",         # Dark input border
+        "input_placeholder": "#8b949e",    # Placeholder text
+    },
+}
 
-# Text colors
-COLOR_TEXT_PRIMARY = "#1a1a1a"    # Main text
-COLOR_TEXT_SECONDARY = "#555555"  # Secondary text
-COLOR_TEXT_DIM = "#888888"        # Dim text
 
-# Accent colors
-COLOR_ACCENT_BLUE = "#0066cc"     
-COLOR_ACCENT_GREEN = "#00aa00"    
-COLOR_ACCENT_ORANGE = "#ff8800"   
-COLOR_ACCENT_RED = "#cc0000"      
+def _apply_theme_palette(theme_mode):
+    global COLOR_BG_PRIMARY, COLOR_BG_SECONDARY, COLOR_BG_SIDEBAR, COLOR_BG_TERTIARY, COLOR_BORDER_LIGHT
+    global COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY, COLOR_TEXT_DIM, COLOR_CARD_SHADOW
+    global COLOR_ACCENT_BLUE, COLOR_ACCENT_GREEN, COLOR_ACCENT_ORANGE, COLOR_ACCENT_RED
+    global COLOR_ACCENT_BLUE_LIGHT, COLOR_ACCENT_GREEN_LIGHT, COLOR_ACCENT_ORANGE_LIGHT, COLOR_ACCENT_RED_LIGHT
+    global COLOR_NEON_BLUE, COLOR_NEON_GREEN, COLOR_NEON_RED, COLOR_NEON_ORANGE, COLOR_NEON_PURPLE
+    global COLOR_BUTTON_PRIMARY, COLOR_BUTTON_SUCCESS, COLOR_BUTTON_WARNING, COLOR_BUTTON_DANGER
+    global COLOR_NAV_INACTIVE_BG, COLOR_NAV_INACTIVE_HOVER, COLOR_NAV_ACTIVE_TEXT
+    global COLOR_UPDATE_BUTTON, COLOR_UPDATE_BUTTON_HOVER
+    global COLOR_INPUT_BG, COLOR_INPUT_TEXT, COLOR_INPUT_BORDER, COLOR_INPUT_PLACEHOLDER
 
-# Legacy colors
-COLOR_NEON_BLUE = "#0066cc"
-COLOR_NEON_GREEN = "#00aa00"
-COLOR_NEON_RED = "#cc0000"
-COLOR_NEON_ORANGE = "#ff8800"
-COLOR_NEON_PURPLE = "#9900cc"
+    p = THEMES.get(theme_mode, THEMES["light"])
+    
+    COLOR_BG_PRIMARY = p["bg_primary"]
+    COLOR_BG_SECONDARY = p["bg_secondary"]
+    COLOR_BG_SIDEBAR = p["bg_sidebar"]
+    COLOR_BG_TERTIARY = p["bg_tertiary"]
+    COLOR_BORDER_LIGHT = p["border_light"]
+    COLOR_CARD_SHADOW = p["card_shadow"]
 
-COLOR_BUTTON_PRIMARY = "#0066cc"
-COLOR_BUTTON_SUCCESS = "#00aa00"
-COLOR_BUTTON_WARNING = "#ff8800"
-COLOR_BUTTON_DANGER = "#cc0000"
+    COLOR_TEXT_PRIMARY = p["text_primary"]
+    COLOR_TEXT_SECONDARY = p["text_secondary"]
+    COLOR_TEXT_DIM = p["text_dim"]
+
+    COLOR_ACCENT_BLUE = p["accent_blue"]
+    COLOR_ACCENT_GREEN = p["accent_green"]
+    COLOR_ACCENT_ORANGE = p["accent_orange"]
+    COLOR_ACCENT_RED = p["accent_red"]
+    
+    COLOR_ACCENT_BLUE_LIGHT = p["accent_blue_light"]
+    COLOR_ACCENT_GREEN_LIGHT = p["accent_green_light"]
+    COLOR_ACCENT_ORANGE_LIGHT = p["accent_orange_light"]
+    COLOR_ACCENT_RED_LIGHT = p["accent_red_light"]
+
+    COLOR_NEON_BLUE = COLOR_ACCENT_BLUE
+    COLOR_NEON_GREEN = COLOR_ACCENT_GREEN
+    COLOR_NEON_RED = COLOR_ACCENT_RED
+    COLOR_NEON_ORANGE = COLOR_ACCENT_ORANGE
+    COLOR_NEON_PURPLE = "#a277ff" if theme_mode == "light" else "#b794f6"
+
+    COLOR_BUTTON_PRIMARY = COLOR_ACCENT_BLUE
+    COLOR_BUTTON_SUCCESS = COLOR_ACCENT_GREEN
+    COLOR_BUTTON_WARNING = COLOR_ACCENT_ORANGE
+    COLOR_BUTTON_DANGER = COLOR_ACCENT_RED
+
+    COLOR_NAV_INACTIVE_BG = p["nav_inactive_bg"]
+    COLOR_NAV_INACTIVE_HOVER = p["nav_inactive_hover"]
+    COLOR_NAV_ACTIVE_TEXT = p["nav_active_text"]
+    COLOR_UPDATE_BUTTON = p["update_btn"]
+    COLOR_UPDATE_BUTTON_HOVER = p["update_btn_hover"]
+    
+    COLOR_INPUT_BG = p["input_bg"]
+    COLOR_INPUT_TEXT = p["input_text"]
+    COLOR_INPUT_BORDER = p["input_border"]
+    COLOR_INPUT_PLACEHOLDER = p["input_placeholder"]
+
+
+_apply_theme_palette(DEFAULT_THEME_MODE)
 
 # --- ENERGY FORMATTING HELPER ---
 def format_energy(value_j: float, per_mm: bool = False) -> str:
@@ -255,9 +357,9 @@ class FSWPanel(ctk.CTkFrame):
         self.add_label(card_mat, "Workpiece Material")
         self.opt_workpiece = ctk.CTkOptionMenu(card_mat, values=list(self.MAT_DB.keys()), 
                                                command=self.update_material_defaults,
-                                               fg_color="#e8eef5", button_color="#0066cc", 
-                                               text_color="#1a1a1a", button_hover_color="#0052a3")
-        self.opt_workpiece.pack(fill="x", padx=20, pady=5)
+                                               fg_color=COLOR_INPUT_BG, button_color=COLOR_ACCENT_BLUE, 
+                                               text_color=COLOR_INPUT_TEXT, button_hover_color=COLOR_ACCENT_BLUE)
+        self.opt_workpiece.pack(fill="x", padx=20, pady=8)
 
         # 2. TOOL GEOMETRY
         card_geo = GlassCard(left_frame, title="2️⃣ TOOL GEOMETRY", color="#ff8800")
@@ -267,7 +369,7 @@ class FSWPanel(ctk.CTkFrame):
         self.ent_pl = self.add_input_row(card_geo, "Pin Length (mm)", "5.83")   
 
         # 3. WELDING PARAMETERS
-        card_proc = GlassCard(left_frame, title="3️⃣ WELDING PARAMETERS", color="#00aa00")
+        card_proc = GlassCard(left_frame, title="3️⃣ WELDING PARAMETERS", color=COLOR_ACCENT_GREEN)
         card_proc.pack(fill="x", pady=12)
         self.ent_rpm = self.add_input_row(card_proc, "Rotation Speed (RPM)", "800")
         self.ent_speed = self.add_input_row(card_proc, "Weld Speed (mm/s)", "2.0")
@@ -283,7 +385,7 @@ class FSWPanel(ctk.CTkFrame):
         right_frame.grid(row=0, column=1, sticky="nsew", padx=24, pady=24)
 
         # 4. PHYSICS RESULTS
-        card_res = GlassCard(right_frame, title="📊 SIMULATION OUTPUTS", color="#00aa00")
+        card_res = GlassCard(right_frame, title="📊 SIMULATION OUTPUTS", color=COLOR_ACCENT_GREEN)
         card_res.pack(fill="x", pady=(0, 12))
         
         self.lbl_torque = self.add_stat(card_res, "REQ. TORQUE", "0.00 Nm")
@@ -299,7 +401,7 @@ class FSWPanel(ctk.CTkFrame):
         btns_frame.columnconfigure(1, weight=1)
 
         btn_calc = ctk.CTkButton(btns_frame, text="▶ RUN SIMULATION", height=60, 
-                                 fg_color="#00aa00", hover_color="#008800",
+                                 fg_color=COLOR_BUTTON_SUCCESS, hover_color=COLOR_ACCENT_GREEN,
                                  text_color="white", font=("Arial", 16, "bold"),
                                  command=self.calculate_physics, corner_radius=12)
         btn_calc.grid(row=0, column=0, sticky="ew", padx=5)
@@ -309,26 +411,26 @@ class FSWPanel(ctk.CTkFrame):
 
     # --- UI HELPERS ---
     def add_label(self, parent, text):
-        ctk.CTkLabel(parent, text=text, text_color="#555555", font=("Arial", 12, "bold"), anchor="w").pack(fill="x", padx=24, pady=(8, 2))
+        ctk.CTkLabel(parent, text=text, text_color=COLOR_TEXT_SECONDARY, font=("Arial", 12, "bold"), anchor="w").pack(fill="x", padx=24, pady=(10, 4))
 
     def add_input_row(self, parent, label, default):
         f = ctk.CTkFrame(parent, fg_color="transparent")
-        f.pack(fill="x", padx=24, pady=4)
-        ctk.CTkLabel(f, text=label, text_color="#1a1a1a", font=("Arial", 13)).pack(side="left")
+        f.pack(fill="x", padx=24, pady=6)
+        ctk.CTkLabel(f, text=label, text_color=COLOR_TEXT_PRIMARY, font=("Arial", 13, "bold")).pack(side="left")
         
-        e = ctk.CTkEntry(f, width=120, justify="center", 
-                         fg_color="#ffffff", text_color="#1a1a1a", 
-                         border_width=2, border_color="#d0d0d0", 
-                         corner_radius=6)
-        e.pack(side="right")
+        e = ctk.CTkEntry(f, width=140, justify="center", 
+                         fg_color=COLOR_INPUT_BG, text_color=COLOR_INPUT_TEXT, 
+                         border_width=2, border_color=COLOR_INPUT_BORDER, 
+                         corner_radius=6, font=("Arial", 12))
+        e.pack(side="right", padx=8)
         e.insert(0, default)
         return e
 
     def add_stat(self, parent, label, default):
         f = ctk.CTkFrame(parent, fg_color="transparent")
-        f.pack(fill="x", padx=24, pady=8)
-        ctk.CTkLabel(f, text=label, text_color="#555555", font=("Arial", 12, "bold")).pack(side="left")
-        l = ctk.CTkLabel(f, text=default, text_color="#0066cc", font=("Arial", 22, "bold"))
+        f.pack(fill="x", padx=24, pady=10)
+        ctk.CTkLabel(f, text=label, text_color=COLOR_TEXT_SECONDARY, font=("Arial", 12, "bold")).pack(side="left")
+        l = ctk.CTkLabel(f, text=default, text_color=COLOR_ACCENT_BLUE, font=("Arial", 22, "bold"))
         l.pack(side="right")
         return l
 
@@ -493,9 +595,21 @@ class PMConsolidationPanel(ctk.CTkScrollableFrame):
         plot_card = GlassCard(self, title="📉 PHYSICS PROFILES", color=COLOR_NEON_BLUE)
         plot_card.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=10, pady=(10, 10))
         
-        self.fig_pm, (self.ax_force, self.ax_energy) = plt.subplots(1, 2, dpi=80)
+        fig_bg = COLOR_BG_SECONDARY if DEFAULT_THEME_MODE == "dark" else COLOR_BG_PRIMARY
+        text_color = COLOR_TEXT_PRIMARY if DEFAULT_THEME_MODE == "dark" else "#000000"
+        self.fig_pm, (self.ax_force, self.ax_energy) = plt.subplots(1, 2, facecolor=fig_bg, dpi=80)
         self.fig_pm.set_size_inches(10, 4) 
-        self.fig_pm.subplots_adjust(wspace=0.3, bottom=0.15) 
+        self.fig_pm.subplots_adjust(wspace=0.3, bottom=0.15)
+        
+        # Set theme-aware colors for axes
+        for ax in [self.ax_force, self.ax_energy]:
+            ax.set_facecolor(fig_bg)
+            ax.tick_params(colors=text_color)
+            ax.xaxis.label.set_color(text_color)
+            ax.yaxis.label.set_color(text_color)
+            ax.title.set_color(text_color)
+            for spine in ax.spines.values():
+                spine.set_color(COLOR_BORDER_LIGHT)
         
         self.pm_canvas = FigureCanvasTkAgg(self.fig_pm, master=plot_card)
         self.pm_canvas.get_tk_widget().pack(fill="both", expand=True, padx=6, pady=6)
@@ -539,7 +653,7 @@ class PMConsolidationPanel(ctk.CTkScrollableFrame):
         f.pack(fill="x", padx=24, pady=5)
         lbl = ctk.CTkLabel(f, text=label, text_color=COLOR_TEXT_PRIMARY, font=("Arial", 13, "bold"))
         lbl.pack(side="left")
-        e = ctk.CTkEntry(f, width=200, justify="center", fg_color="white", text_color=COLOR_TEXT_PRIMARY, border_color=COLOR_BORDER_LIGHT, border_width=2, font=("Arial", 12), corner_radius=6)
+        e = ctk.CTkEntry(f, width=200, justify="center", fg_color=COLOR_INPUT_BG, text_color=COLOR_INPUT_TEXT, border_color=COLOR_INPUT_BORDER, border_width=2, font=("Arial", 12), corner_radius=6)
         e.pack(side="right", padx=8)
         e.insert(0, default)
         
@@ -790,7 +904,7 @@ class HomePanel(ctk.CTkFrame):
         content.pack(fill="both", expand=True, padx=8, pady=8)
 
         ctk.CTkLabel(content, text="Welcome to HAM Lab", font=("Arial", 32, "bold"), 
-                     text_color=COLOR_TEXT_PRIMARY).pack(pady=(20, 5))
+                 text_color=COLOR_TEXT_PRIMARY).pack(pady=(30, 6))
         
         ctk.CTkLabel(content, text="Advanced Physics Engine for Welding & Additive Manufacturing", 
                      font=("Arial", 15, "bold"), text_color=COLOR_TEXT_SECONDARY).pack(pady=(5, 20))
@@ -804,15 +918,19 @@ class HomePanel(ctk.CTkFrame):
             ("🧪 Powder Metallurgy", "Powder Metallurgy process analysis", self.nav_callbacks.get("pm")),
             ("🆚 Compare", "Side-by-side process comparison tools", self.nav_callbacks.get("compare")),
             ("📚 Documentation", "Open product guide and technical notes", self.nav_callbacks.get("docs")),
+            ("⚙️ Settings", "Configure UI preferences and experimental toggles", None),
         ]
         
         for i, (title, desc, callback) in enumerate(features):
             row = i // 2
             col = i % 2
+
+            shadow = ctk.CTkFrame(features_frame, fg_color=COLOR_CARD_SHADOW, corner_radius=13)
+            shadow.grid(row=row, column=col, padx=12, pady=12, sticky="nsew")
             
-            card = ctk.CTkFrame(features_frame, fg_color=COLOR_BG_PRIMARY, border_width=2, 
+            card = ctk.CTkFrame(features_frame, fg_color=COLOR_BG_SECONDARY, border_width=2, 
                                border_color=COLOR_ACCENT_BLUE, corner_radius=12)
-            card.grid(row=row, column=col, padx=12, pady=12, sticky="nsew")
+            card.grid(row=row, column=col, padx=10, pady=(10, 14), sticky="nsew")
             
             if callback:
                 card.configure(cursor="hand2")
@@ -841,9 +959,11 @@ class HomePanel(ctk.CTkFrame):
                 desc_label.bind("<Button-1>", card_callback)
                 
                 def on_enter(event, c=card):
-                    c.configure(fg_color="#e8f4f8", border_color=COLOR_ACCENT_GREEN)
+                    c.configure(fg_color=COLOR_ACCENT_BLUE_LIGHT, border_color=COLOR_ACCENT_BLUE)
+                    c.grid_configure(pady=(8, 16))
                 def on_leave(event, c=card):
-                    c.configure(fg_color=COLOR_BG_PRIMARY, border_color=COLOR_ACCENT_BLUE)
+                    c.configure(fg_color=COLOR_BG_SECONDARY, border_color=COLOR_ACCENT_BLUE)
+                    c.grid_configure(pady=(10, 14))
                 
                 card.bind("<Enter>", on_enter)
                 card.bind("<Leave>", on_leave)
@@ -1223,9 +1343,22 @@ class ComparisonPanel(ctk.CTkFrame):
         graph_card.pack(fill="both", pady=(0,10))
         
         # 2 Subplots (Energy & Force) - Removed Time
-        self.fig, (self.ax1, self.ax2) = plt.subplots(1, 2, facecolor=COLOR_BG_PRIMARY, dpi=80)
+        fig_bg = COLOR_BG_SECONDARY if DEFAULT_THEME_MODE == "dark" else COLOR_BG_PRIMARY
+        text_color = COLOR_TEXT_PRIMARY if DEFAULT_THEME_MODE == "dark" else "#000000"
+        self.fig, (self.ax1, self.ax2) = plt.subplots(1, 2, facecolor=fig_bg, dpi=80)
         self.fig.set_size_inches(12, 3.5)
         self.fig.subplots_adjust(wspace=0.4, bottom=0.15)
+        
+        # Set theme-aware colors for axes
+        for ax in [self.ax1, self.ax2]:
+            ax.set_facecolor(fig_bg)
+            ax.tick_params(colors=text_color)
+            ax.xaxis.label.set_color(text_color)
+            ax.yaxis.label.set_color(text_color)
+            ax.title.set_color(text_color)
+            for spine in ax.spines.values():
+                spine.set_color(COLOR_BORDER_LIGHT)
+        
         self.canvas = FigureCanvasTkAgg(self.fig, master=graph_card)
         self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=5, pady=5)
 
@@ -1236,20 +1369,26 @@ class ComparisonPanel(ctk.CTkFrame):
         
         ctk.CTkButton(right, text="📄 GENERATE PDF", command=self.gen_report, fg_color=COLOR_BUTTON_SUCCESS).pack(fill="x", pady=10)
 
-    def add_label(self, p, t): ctk.CTkLabel(p, text=t, font=("Arial",12,"bold"), text_color="gray").pack(anchor="w", padx=20, pady=2)
+    def add_label(self, p, t): 
+        ctk.CTkLabel(p, text=t, font=("Arial",13,"bold"), text_color=COLOR_TEXT_SECONDARY).pack(anchor="w", padx=20, pady=(12, 6))
     
     def add_input_row(self, p, l, d):
-        f = ctk.CTkFrame(p, fg_color="transparent"); f.pack(fill="x", padx=20, pady=2)
-        ctk.CTkLabel(f, text=l, font=("Arial", 12)).pack(side="left")
-        e = ctk.CTkEntry(f, width=100); e.pack(side="right"); e.insert(0, d)
+        f = ctk.CTkFrame(p, fg_color="transparent")
+        f.pack(fill="x", padx=20, pady=6)
+        ctk.CTkLabel(f, text=l, font=("Arial", 12, "bold"), text_color=COLOR_TEXT_PRIMARY).pack(side="left")
+        e = ctk.CTkEntry(f, width=130, fg_color=COLOR_INPUT_BG, text_color=COLOR_INPUT_TEXT, border_width=2, border_color=COLOR_INPUT_BORDER, corner_radius=6, font=("Arial", 12))
+        e.pack(side="right", padx=6)
+        e.insert(0, d)
         return e
         
     def mini_input(self, p, l, d):
         # Helper to pack small inputs side-by-side
         f_inner = ctk.CTkFrame(p, fg_color="transparent")
-        f_inner.pack(side="left", expand=True)
-        ctk.CTkLabel(f_inner, text=l, font=("Arial", 11)).pack(side="left", padx=2)
-        e = ctk.CTkEntry(f_inner, width=60); e.pack(side="left"); e.insert(0, d)
+        f_inner.pack(side="left", expand=True, padx=4)
+        ctk.CTkLabel(f_inner, text=l, font=("Arial", 11, "bold"), text_color=COLOR_TEXT_SECONDARY).pack(side="left", padx=2)
+        e = ctk.CTkEntry(f_inner, width=70, fg_color=COLOR_INPUT_BG, text_color=COLOR_INPUT_TEXT, border_width=1, border_color=COLOR_INPUT_BORDER, corner_radius=4, font=("Arial", 11))
+        e.pack(side="left", padx=4)
+        e.insert(0, d)
         return e
 
     def compare(self):
@@ -1604,13 +1743,13 @@ class WAAMPanel(ctk.CTkFrame):
         self.calc = WAAMCalculator()
         self.last_res = None
 
-        ctk.CTkButton(btns, text="▶ CALCULATE", height=45, fg_color=COLOR_BUTTON_PRIMARY, corner_radius=6,
-                      hover_color="#0052a3", text_color="white", font=("Arial",13,"bold"),
-                      command=self.run_calc).grid(row=0, column=0, sticky="ew", padx=4, pady=6)
+        ctk.CTkButton(btns, text="▶ CALCULATE", height=48, fg_color=COLOR_BUTTON_PRIMARY, corner_radius=8,
+                      hover_color=COLOR_ACCENT_BLUE, text_color="white", font=("Arial",13,"bold"),
+                      command=self.run_calc).grid(row=0, column=0, sticky="ew", padx=6, pady=8)
                       
-        ctk.CTkButton(btns, text="📄 REPORT", height=45, fg_color=COLOR_BUTTON_SUCCESS, corner_radius=6,
-                      hover_color="#008800", text_color="white", font=("Arial",13,"bold"),
-                      command=self.gen_pdf).grid(row=0, column=1, sticky="ew", padx=4, pady=6)
+        ctk.CTkButton(btns, text="📄 REPORT", height=48, fg_color=COLOR_BUTTON_SUCCESS, corner_radius=8,
+                      hover_color=COLOR_ACCENT_GREEN, text_color="white", font=("Arial",13,"bold"),
+                      command=self.gen_pdf).grid(row=0, column=1, sticky="ew", padx=6, pady=8)
 
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
@@ -1618,21 +1757,21 @@ class WAAMPanel(ctk.CTkFrame):
     def add_section(self, parent, title, fields):
         row_idx = getattr(parent, "_row_idx", 0)
         
-        header_frame = ctk.CTkFrame(parent, fg_color=COLOR_ACCENT_BLUE, corner_radius=4)
-        header_frame.grid(row=row_idx, column=0, columnspan=2, sticky="ew", padx=6, pady=(10,6))
+        header_frame = ctk.CTkFrame(parent, fg_color=COLOR_ACCENT_BLUE, corner_radius=6)
+        header_frame.grid(row=row_idx, column=0, columnspan=2, sticky="ew", padx=8, pady=(12, 8))
         
-        ctk.CTkLabel(header_frame, text=title, font=("Arial",16,"bold"), text_color="white", 
-                     fg_color="transparent").pack(anchor="w", padx=10, pady=6)
+        ctk.CTkLabel(header_frame, text=title, font=("Arial", 15, "bold"), text_color="white", 
+                     fg_color="transparent").pack(anchor="w", padx=12, pady=8)
         row_idx += 1
 
         for lbl, key, val in fields:
-            l = ctk.CTkLabel(parent, text=lbl, text_color=COLOR_TEXT_PRIMARY, font=("Arial",12))
-            l.grid(row=row_idx, column=0, sticky="w", padx=10, pady=4)
+            l = ctk.CTkLabel(parent, text=lbl, text_color=COLOR_TEXT_PRIMARY, font=("Arial", 12, "bold"))
+            l.grid(row=row_idx, column=0, sticky="w", padx=12, pady=6)
 
             e = ctk.CTkEntry(parent, placeholder_text=val, width=140, justify="center", 
-                             font=("Arial",12), fg_color="white", border_width=1, border_color=COLOR_BORDER_LIGHT)
+                             font=("Arial", 12), fg_color=COLOR_INPUT_BG, text_color=COLOR_INPUT_TEXT, border_width=2, border_color=COLOR_INPUT_BORDER, corner_radius=6)
             e.insert(0, val)
-            e.grid(row=row_idx, column=1, sticky="ew", padx=10, pady=4)
+            e.grid(row=row_idx, column=1, sticky="ew", padx=12, pady=6)
 
             self.inputs[key] = e
             row_idx += 1
@@ -1640,21 +1779,21 @@ class WAAMPanel(ctk.CTkFrame):
         parent._row_idx = row_idx
 
     def add_card(self, parent, title, labels, keys, row_num):
-        card = ctk.CTkFrame(parent, fg_color=COLOR_BG_PRIMARY, border_width=1, border_color=COLOR_BORDER_LIGHT, corner_radius=4)
-        card.grid(row=row_num, column=0, sticky="ew", pady=5, padx=0)
+        card = ctk.CTkFrame(parent, fg_color=COLOR_BG_SECONDARY, border_width=2, border_color=COLOR_BORDER_LIGHT, corner_radius=8)
+        card.grid(row=row_num, column=0, sticky="ew", pady=12, padx=0)
         card.columnconfigure(0, weight=1)
         
-        header = ctk.CTkFrame(card, fg_color=COLOR_ACCENT_BLUE, corner_radius=3)
-        header.pack(fill="x", padx=4, pady=4)
+        header = ctk.CTkFrame(card, fg_color=COLOR_ACCENT_BLUE, corner_radius=6)
+        header.pack(fill="x", padx=4, pady=6)
         
-        ctk.CTkLabel(header, text=title, font=("Arial",13,"bold"), text_color="white", 
-                     fg_color="transparent").pack(anchor="w", padx=8, pady=4)
+        ctk.CTkLabel(header, text=title, font=("Arial",14,"bold"), text_color="white", 
+                     fg_color="transparent").pack(anchor="w", padx=12, pady=8)
         
         for l, k in zip(labels, keys):
             r = ctk.CTkFrame(card, fg_color="transparent")
-            r.pack(fill="x", padx=10, pady=2)
-            ctk.CTkLabel(r, text=l, text_color=COLOR_TEXT_SECONDARY, font=("Arial",11)).pack(side="left")
-            self.outputs[k] = ctk.CTkLabel(r, text="--", font=("Arial",14,"bold"), text_color=COLOR_ACCENT_BLUE)
+            r.pack(fill="x", padx=14, pady=6)
+            ctk.CTkLabel(r, text=l, text_color=COLOR_TEXT_SECONDARY, font=("Arial",12)).pack(side="left")
+            self.outputs[k] = ctk.CTkLabel(r, text="--", font=("Arial",15,"bold"), text_color=COLOR_ACCENT_BLUE)
             self.outputs[k].pack(side="right")
 
     def run_calc(self):
@@ -1702,6 +1841,7 @@ class WAAMPanel(ctk.CTkFrame):
 class ProHMI(ctk.CTk):
     def __init__(self):
         super().__init__()
+        self.theme_mode = DEFAULT_THEME_MODE
         self.latest_version = None
         self.latest_installer_url = None
         self.latest_release_url = None
@@ -1716,7 +1856,7 @@ class ProHMI(ctk.CTk):
         # Add footer row config
         self.grid_rowconfigure(2, weight=0)
 
-        self.top_bar = ctk.CTkFrame(self, corner_radius=0, fg_color="#ffffff", border_width=0)
+        self.top_bar = ctk.CTkFrame(self, corner_radius=0, fg_color=COLOR_BG_SECONDARY, border_width=1, border_color=COLOR_BORDER_LIGHT)
         self.top_bar.grid(row=0, column=0, sticky="ew")
         self.top_bar.grid_propagate(False)
         self.top_bar.configure(height=95)
@@ -1739,42 +1879,75 @@ class ProHMI(ctk.CTk):
         ctk.CTkLabel(title_frame, text=" • ", font=("Arial", 12), text_color=COLOR_TEXT_SECONDARY).pack(side="left", padx=5)
         ctk.CTkLabel(title_frame, text=f"Advanced Engineering Physics ({APP_VERSION})", font=("Arial", 11), text_color=COLOR_TEXT_SECONDARY).pack(side="left")
 
-        self.status_indicator = ctk.CTkLabel(header_frame, text="🟢 READY", font=("Arial", 10, "bold"), text_color=COLOR_ACCENT_GREEN)
-        self.status_indicator.pack(side="right", padx=10)
-
         nav_frame = ctk.CTkFrame(self.top_bar, fg_color="transparent")
-        nav_frame.grid(row=1, column=0, sticky="ew", padx=15, pady=(5, 10))
+        nav_frame.grid(row=1, column=0, sticky="ew", padx=12, pady=(5, 10))
 
+        nav_left = ctk.CTkFrame(nav_frame, fg_color="transparent")
+        nav_left.pack(side="left")
+        nav_right = ctk.CTkFrame(nav_frame, fg_color="transparent")
+        nav_right.pack(side="right")
+
+        self.theme_switch = ctk.CTkSwitch(
+            nav_right,
+            text="Dark mode",
+            font=("Arial", 10, "bold"),
+            text_color=COLOR_TEXT_SECONDARY,
+            progress_color=COLOR_ACCENT_BLUE,
+            button_color=COLOR_BG_SECONDARY,
+            button_hover_color=COLOR_BG_SIDEBAR,
+            command=self.toggle_theme,
+        )
+        self.theme_switch.pack(side="right", padx=(6, 10))
+        if self.theme_mode == "dark":
+            self.theme_switch.select()
+        else:
+            self.theme_switch.deselect()
+
+        self.nav_buttons = {}
         buttons = [
-            ("Home", self.show_home, "#0066cc"),
-            ("FSW", self.show_fsw, "#5555ff"),
-            ("WAAM", self.show_waam, "#5555ff"),
-            ("Powder Metallurgy", self.show_pm, "#5555ff"),
-            ("Compare", self.show_compare, "#5555ff"),
-            ("Documentation", self.show_docs, "#5555ff"),
+            ("home", "Home", self.show_home),
+            ("fsw", "FSW", self.show_fsw),
+            ("waam", "WAAM", self.show_waam),
+            ("pm", "Powder Metallurgy", self.show_pm),
+            ("compare", "Compare", self.show_compare),
+            ("docs", "Documentation", self.show_docs),
         ]
-        
-        for txt, cmd, color in buttons:
-            ctk.CTkButton(nav_frame, text=txt, width=90, height=28, font=("Arial", 9, "bold"),
-                          fg_color=color, text_color="white", corner_radius=5, command=cmd).pack(side="left", padx=3)
+
+        for key, txt, cmd in buttons:
+            btn = ctk.CTkButton(
+                nav_left,
+                text=txt,
+                width=102,
+                height=30,
+                font=("Arial", 9, "bold"),
+                fg_color=COLOR_NAV_INACTIVE_BG,
+                hover_color=COLOR_NAV_INACTIVE_HOVER,
+                text_color=COLOR_ACCENT_BLUE,
+                border_width=1,
+                border_color=COLOR_ACCENT_BLUE,
+                corner_radius=5,
+                command=cmd,
+            )
+            btn.pack(side="left", padx=3)
+            self.nav_buttons[key] = btn
 
         self.btn_install_update = ctk.CTkButton(
-            nav_frame,
+            nav_right,
             text="Install Update",
             width=110,
             height=28,
             font=("Arial", 9, "bold"),
-            fg_color=COLOR_BUTTON_SUCCESS,
-            hover_color="#008800",
+            fg_color=COLOR_UPDATE_BUTTON,
+            hover_color=COLOR_UPDATE_BUTTON_HOVER,
             text_color="white",
             corner_radius=5,
             state="disabled",
             command=self.install_update,
         )
-        self.btn_install_update.pack(side="right", padx=3)
+        self.btn_install_update.pack(side="right", padx=(6, 0))
 
         self.lbl_update_status = ctk.CTkLabel(
-            nav_frame,
+            nav_right,
             text="Checking updates...",
             font=("Arial", 9, "bold"),
             text_color=COLOR_TEXT_SECONDARY,
@@ -1808,6 +1981,41 @@ class ProHMI(ctk.CTk):
 
         self.show_home()
         self.after(1500, self.check_for_updates_async)
+
+    def toggle_theme(self):
+        next_mode = "dark" if self.theme_switch.get() == 1 else "light"
+        if next_mode == self.theme_mode:
+            return
+        env = os.environ.copy()
+        env[THEME_ENV_KEY] = next_mode
+        try:
+            subprocess.Popen([sys.executable, *sys.argv], cwd=os.getcwd(), env=env)
+            self.after(120, self.destroy)
+        except Exception as e:
+            messagebox.showerror("Theme Switch Error", f"Could not apply theme switch.\n\n{e}")
+            if self.theme_mode == "dark":
+                self.theme_switch.select()
+            else:
+                self.theme_switch.deselect()
+
+    def _set_active_nav(self, active_key):
+        for key, btn in self.nav_buttons.items():
+            if key == active_key:
+                btn.configure(
+                    fg_color=COLOR_ACCENT_BLUE,
+                    hover_color="#0052a3",
+                    text_color="white",
+                    border_width=1,
+                    border_color=COLOR_ACCENT_BLUE,
+                )
+            else:
+                btn.configure(
+                    fg_color=COLOR_NAV_INACTIVE_BG,
+                    hover_color=COLOR_NAV_INACTIVE_HOVER,
+                    text_color=COLOR_ACCENT_BLUE,
+                    border_width=1,
+                    border_color=COLOR_ACCENT_BLUE,
+                )
 
     def _normalize_version(self, raw):
         cleaned = str(raw).strip().lower().replace("v", "")
@@ -1978,27 +2186,27 @@ class ProHMI(ctk.CTk):
 
     def show_home(self): 
         self.select_frame(self.frame_home)
-        self.status_indicator.configure(text="🟢 HOME")
+        self._set_active_nav("home")
         
     def show_fsw(self): 
         self.select_frame(self.frame_fsw)
-        self.status_indicator.configure(text="⚙️ FSW")
+        self._set_active_nav("fsw")
         
     def show_pm(self):
         self.select_frame(self.frame_pm)
-        self.status_indicator.configure(text="🧪 Powder Metallurgy")
+        self._set_active_nav("pm")
         
     def show_waam(self): 
         self.select_frame(self.frame_waam)
-        self.status_indicator.configure(text="⚡ WAAM")
+        self._set_active_nav("waam")
         
     def show_compare(self): 
         self.select_frame(self.frame_compare)
-        self.status_indicator.configure(text="🆚 Compare")
+        self._set_active_nav("compare")
 
     def show_docs(self):
         self.select_frame(self.frame_docs)
-        self.status_indicator.configure(text="📚 Documentation")
+        self._set_active_nav("docs")
 
     def select_frame(self, frame):
         for widget in self.main_container.winfo_children():
