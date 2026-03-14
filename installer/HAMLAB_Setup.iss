@@ -1,5 +1,5 @@
 #define MyAppName "HAM Lab Controller"
-#define MyAppVersion "2.3"
+#define MyAppVersion "2.4.2"
 #define MyAppPublisher "HAM Lab Engineering"
 #define MyAppExeName "HAMLab.exe"
 

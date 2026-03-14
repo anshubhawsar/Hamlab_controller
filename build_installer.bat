@@ -2,7 +2,7 @@
 setlocal
 
 set APP_EXE_NAME=HAMLab
-set APP_VERSION=v2_3
+set APP_VERSION=v2_4_2
 
 echo [1/5] Creating virtual environment if needed...
 if not exist ".venv\Scripts\python.exe" (

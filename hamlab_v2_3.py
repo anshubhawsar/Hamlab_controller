@@ -29,7 +29,7 @@ except ImportError:
 
 # --- THEME CONFIGURATION ---
 APP_NAME = "HAM LAB SMART CONTROLLER"
-APP_VERSION = "v2.3"
+APP_VERSION = "v2.4.2"
 GITHUB_REPO = "anshubhawsar/Hamlab_controller"
 GITHUB_LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 GITHUB_RELEASES_PAGE = f"https://github.com/{GITHUB_REPO}/releases"
@@ -1706,6 +1706,7 @@ class ProHMI(ctk.CTk):
         self.latest_installer_url = None
         self.latest_release_url = None
         self.latest_asset_name = None
+        self.update_test_mode = False
 
         self.title(f"{APP_NAME} {APP_VERSION}")
         self.geometry("1600x950")
@@ -1773,6 +1774,20 @@ class ProHMI(ctk.CTk):
         )
         self.btn_install_update.pack(side="right", padx=3)
 
+        self.btn_test_updater = ctk.CTkButton(
+            nav_frame,
+            text="Test Updater",
+            width=100,
+            height=28,
+            font=("Arial", 9, "bold"),
+            fg_color="#7a4d00",
+            hover_color="#9a6200",
+            text_color="white",
+            corner_radius=5,
+            command=self.test_updater_flow,
+        )
+        self.btn_test_updater.pack(side="right", padx=3)
+
         self.lbl_update_status = ctk.CTkLabel(
             nav_frame,
             text="Checking updates...",
@@ -1828,12 +1843,13 @@ class ProHMI(ctk.CTk):
         b.extend([0] * (max_len - len(b)))
         return tuple(a) > tuple(b)
 
-    def check_for_updates_async(self):
+    def check_for_updates_async(self, force_test=False):
+        self.update_test_mode = bool(force_test)
         self.lbl_update_status.configure(text="Checking updates...", text_color=COLOR_TEXT_SECONDARY)
         self.btn_install_update.configure(state="disabled")
-        threading.Thread(target=self._check_updates_worker, daemon=True).start()
+        threading.Thread(target=lambda: self._check_updates_worker(force_test=force_test), daemon=True).start()
 
-    def _check_updates_worker(self):
+    def _check_updates_worker(self, force_test=False):
         try:
             req = urllib.request.Request(
                 GITHUB_LATEST_RELEASE_API,
@@ -1861,8 +1877,8 @@ class ProHMI(ctk.CTk):
                     asset_name = asset.get("name", "")
                     break
 
-            if latest_tag and installer_url and self._is_newer_version(latest_tag, APP_VERSION):
-                self.after(0, lambda: self._on_update_available(latest_tag, installer_url, release_url, asset_name))
+            if latest_tag and installer_url and (force_test or self._is_newer_version(latest_tag, APP_VERSION)):
+                self.after(0, lambda: self._on_update_available(latest_tag, installer_url, release_url, asset_name, force_test))
             else:
                 self.after(0, self._on_up_to_date)
 
@@ -1878,18 +1894,22 @@ class ProHMI(ctk.CTk):
         except Exception:
             self.after(0, lambda: self._on_update_check_failed("Unknown error"))
 
-    def _on_update_available(self, latest_tag, installer_url, release_url, asset_name):
+    def _on_update_available(self, latest_tag, installer_url, release_url, asset_name, force_test=False):
         self.latest_version = latest_tag
         self.latest_installer_url = installer_url
         self.latest_release_url = release_url
         self.latest_asset_name = asset_name or ""
-        self.lbl_update_status.configure(text=f"Update: {latest_tag} available", text_color=COLOR_ACCENT_ORANGE)
+        if force_test:
+            self.lbl_update_status.configure(text=f"TEST MODE: {latest_tag} ready", text_color=COLOR_ACCENT_ORANGE)
+        else:
+            self.lbl_update_status.configure(text=f"Update: {latest_tag} available", text_color=COLOR_ACCENT_ORANGE)
         self.btn_install_update.configure(state="normal")
 
     def _on_up_to_date(self):
         self.latest_version = None
         self.latest_installer_url = None
         self.latest_asset_name = None
+        self.update_test_mode = False
         self.lbl_update_status.configure(text="Up to date", text_color=COLOR_ACCENT_GREEN)
         self.btn_install_update.configure(state="disabled")
 
@@ -1897,10 +1917,12 @@ class ProHMI(ctk.CTk):
         self.latest_version = None
         self.latest_installer_url = None
         self.latest_asset_name = None
+        self.update_test_mode = False
         self.lbl_update_status.configure(text="No GitHub release published", text_color=COLOR_ACCENT_ORANGE)
         self.btn_install_update.configure(state="disabled")
 
     def _on_rate_limited(self):
+        self.update_test_mode = False
         self.lbl_update_status.configure(text="GitHub API rate-limited", text_color=COLOR_ACCENT_ORANGE)
         self.btn_install_update.configure(state="disabled")
 
@@ -1908,8 +1930,14 @@ class ProHMI(ctk.CTk):
         msg = "Update check failed"
         if reason:
             msg = f"Update check failed ({reason})"
+        self.update_test_mode = False
         self.lbl_update_status.configure(text=msg, text_color=COLOR_ACCENT_RED)
         self.btn_install_update.configure(state="disabled")
+
+    def test_updater_flow(self):
+        self.lbl_update_status.configure(text="Testing updater flow...", text_color=COLOR_ACCENT_ORANGE)
+        self.btn_install_update.configure(state="disabled")
+        self.check_for_updates_async(force_test=True)
 
     def install_update(self):
         if not self.latest_installer_url:
@@ -1918,7 +1946,13 @@ class ProHMI(ctk.CTk):
                 webbrowser.open(self.latest_release_url)
             return
 
-        if not messagebox.askyesno("Install Update", f"Download and install {self.latest_version}?\n\nThe installer will run after download."):
+        prompt_title = "Install Update"
+        prompt_text = f"Download and install {self.latest_version}?\n\nThe installer will run after download."
+        if self.update_test_mode:
+            prompt_title = "Install Update (Test Mode)"
+            prompt_text = f"Test updater flow with {self.latest_version}?\n\nThe installer will run after download."
+
+        if not messagebox.askyesno(prompt_title, prompt_text):
             return
 
         self.btn_install_update.configure(state="disabled", text="Downloading...")
