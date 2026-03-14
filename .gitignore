@@ -1,0 +1,26 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build artifacts
+build/
+dist/
+*.spec
+
+# Generated reports
+*.pdf
+!docs/HAMLAB_Documentation.pdf
+
+# Temporary files
+temp_*.png
+*.log
+
+# IDE
+.vscode/
+.idea/
