@@ -29,7 +29,7 @@ except ImportError:
 
 # --- THEME CONFIGURATION ---
 APP_NAME = "HAM LAB SMART CONTROLLER"
-APP_VERSION = "v2.4.2"
+APP_VERSION = "v2.4.3"
 GITHUB_REPO = "anshubhawsar/Hamlab_controller"
 GITHUB_LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 GITHUB_RELEASES_PAGE = f"https://github.com/{GITHUB_REPO}/releases"
@@ -422,7 +422,7 @@ class PMConsolidationPanel(ctk.CTkScrollableFrame):
         left_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
 
         # 1. Inputs
-        card_inputs = GlassCard(left_frame, title="1️⃣ PM CONSOLIDATION INPUTS")
+        card_inputs = GlassCard(left_frame, title="1️⃣ POWDER METALLURGY INPUTS")
         card_inputs.pack(fill="x", pady=(0, 10))
 
         self.ent_L = self.add_input_row(card_inputs, "Length L (mm)", "20.0")
@@ -454,7 +454,7 @@ class PMConsolidationPanel(ctk.CTkScrollableFrame):
         right_frame = ctk.CTkFrame(self, fg_color="transparent")
         right_frame.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
 
-        card_results = GlassCard(right_frame, title="📊 PM CONSOLIDATION RESULTS")
+        card_results = GlassCard(right_frame, title="📊 POWDER METALLURGY RESULTS")
         card_results.pack(fill="both", expand=True)
 
         self.table_container = ctk.CTkFrame(card_results, fg_color="transparent")
@@ -699,7 +699,7 @@ class PMConsolidationPanel(ctk.CTkScrollableFrame):
 
                 pdf = PDFReport()
                 pdf.add_page()
-                pdf.section_title("PM CONSOLIDATION REPORT")
+                pdf.section_title("POWDER METALLURGY REPORT")
                 
                 pdf.set_font("Arial", "", 10)
                 pdf.cell(0, 5, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", 0, 1, 'R')
@@ -801,7 +801,7 @@ class HomePanel(ctk.CTkFrame):
         features = [
             ("⚙️ FSW Process", "Friction Stir Welding parameters and physics simulation", self.nav_callbacks.get("fsw")),
             ("⚡ WAAM Energy", "Wire Arc Additive Manufacturing calculations", self.nav_callbacks.get("waam")),
-            ("🧪 PM Consolidation", "Powder Metallurgy consolidation analysis", self.nav_callbacks.get("pm")),
+            ("🧪 Powder Metallurgy", "Powder Metallurgy process analysis", self.nav_callbacks.get("pm")),
             ("🆚 Compare", "Side-by-side process comparison tools", self.nav_callbacks.get("compare")),
             ("📚 Documentation", "Open product guide and technical notes", self.nav_callbacks.get("docs")),
         ]
@@ -1089,10 +1089,10 @@ class ReportGenerator:
 
     @staticmethod
     def generate_pm(inputs, results, filepath):
-        pdf = PDFReport("PM CONSOLIDATION")
+        pdf = PDFReport("POWDER METALLURGY")
         pdf.add_page()
         
-        pdf.section_title("1. PM CONSOLIDATION INPUTS")
+        pdf.section_title("1. POWDER METALLURGY INPUTS")
         pdf.add_row("Length L", inputs['L'], "mm")
         pdf.add_row("Width W", inputs['W'], "mm")
         pdf.add_row("Target Height", inputs['H'], "mm")
@@ -1157,7 +1157,7 @@ class ReportGenerator:
             
             f"4. FINAL RECOMMENDATION:\n"
             f"   - Select WAAM for complex, freeform geometries where tool access is needed.\n"
-            f"   - Select PM Consolidation for simple blocks where speed and energy efficiency are critical.\n"
+            f"   - Select Powder Metallurgy for simple blocks where speed and energy efficiency are critical.\n"
         )
         pdf.multi_cell(0, 6, analysis)
         pdf.output(filepath)
@@ -1202,7 +1202,7 @@ class ComparisonPanel(ctk.CTkFrame):
 
         # PM Inputs (Updated to match PMPanel logic)
         ctk.CTkFrame(ctrl, height=1, fg_color=COLOR_BORDER_LIGHT).pack(fill="x", padx=20, pady=5)
-        self.add_label(ctrl, "PROCESS B: PM CONSOLIDATION")
+        self.add_label(ctrl, "PROCESS B: POWDER METALLURGY")
         self.ent_p_alpha = self.add_input_row(ctrl, "Alpha", "0.03")
         self.ent_p_beta = self.add_input_row(ctrl, "Beta", "0.05")
         self.ent_p_press = self.add_input_row(ctrl, "Pressure (MPa)", "300")
@@ -1440,7 +1440,7 @@ class ComparisonPanel(ctk.CTkFrame):
 
                 # 3c. PM Parameters
                 pdf.set_fill_color(240, 240, 240)
-                pdf.cell(0, 8, "  PM Process Parameters", 0, 1, 'L', True)
+                pdf.cell(0, 8, "  Powder Metallurgy Process Parameters", 0, 1, 'L', True)
                 pdf.ln(2)
 
                 pdf.add_row("Alpha (Resistance)", self.ent_p_alpha.get(), "")
@@ -1460,7 +1460,7 @@ class ComparisonPanel(ctk.CTkFrame):
                 pdf.set_fill_color(0, 102, 204); pdf.set_text_color(255)
                 pdf.cell(60, 8, "Metric", 1, 0, 'C', True)
                 pdf.cell(60, 8, "WAAM (Arc)", 1, 0, 'C', True)
-                pdf.cell(60, 8, "PM (Solid State)", 1, 1, 'C', True)
+                pdf.cell(60, 8, "Powder Metallurgy", 1, 1, 'C', True)
                 
                 # Rows
                 pdf.set_font("Arial", "", 10); pdf.set_text_color(0)
@@ -1504,12 +1504,12 @@ class ComparisonPanel(ctk.CTkFrame):
                 if waam_e > pm_e:
                     diff = waam_e - pm_e
                     energy_ratio = waam_e / pm_e if pm_e > 0 else 0
-                    txt += f"1. ENERGY: PM Consolidation is more energy-efficient for this geometry, saving {diff:.1f} kJ compared to WAAM. WAAM consumes approx. {energy_ratio:.1f}x more energy.\n\n"
+                    txt += f"1. ENERGY: Powder Metallurgy is more energy-efficient for this geometry, saving {diff:.1f} kJ compared to WAAM. WAAM consumes approx. {energy_ratio:.1f}x more energy.\n\n"
                 else:
                     diff = pm_e - waam_e
                     txt += f"1. ENERGY: WAAM is more energy-efficient in this scenario, saving {diff:.1f} kJ compared to PM.\n\n"
                 
-                txt += f"2. MECHANICS: PM Consolidation is a solid-state process involving high mechanical loads, requiring a peak force of {pm_f:.1f} kN. WAAM is a fusion-based process with negligible mechanical force (0 kN) but high thermal input."
+                txt += f"2. MECHANICS: Powder Metallurgy is a solid-state process involving high mechanical loads, requiring a peak force of {pm_f:.1f} kN. WAAM is a fusion-based process with negligible mechanical force (0 kN) but high thermal input."
                 
                 pdf.multi_cell(0, 5, txt)
                 
@@ -1750,7 +1750,7 @@ class ProHMI(ctk.CTk):
             ("Home", self.show_home, "#0066cc"),
             ("FSW", self.show_fsw, "#5555ff"),
             ("WAAM", self.show_waam, "#5555ff"),
-            ("PM Consolidation", self.show_pm, "#5555ff"),
+            ("Powder Metallurgy", self.show_pm, "#5555ff"),
             ("Compare", self.show_compare, "#5555ff"),
             ("Documentation", self.show_docs, "#5555ff"),
         ]
@@ -2019,7 +2019,7 @@ class ProHMI(ctk.CTk):
         
     def show_pm(self):
         self.select_frame(self.frame_pm)
-        self.status_indicator.configure(text="🧪 PM Consolidation")
+        self.status_indicator.configure(text="🧪 Powder Metallurgy")
         
     def show_waam(self): 
         self.select_frame(self.frame_waam)
