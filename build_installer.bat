@@ -16,12 +16,13 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 
 echo [3/4] Building desktop executable with PyInstaller...
-pyinstaller --noconfirm --clean --windowed --name %APP_EXE_NAME% --add-data "docs\HAMLAB_Documentation.pdf;docs" hamlab.py
+pyinstaller --noconfirm --clean --windowed --name %APP_EXE_NAME% --add-data "docs\HAMLAB_Documentation.pdf;docs" --add-data "image.png;." hamlab.py
 
 if not exist "dist\%APP_EXE_NAME%\docs" (
     mkdir "dist\%APP_EXE_NAME%\docs"
 )
 copy /Y "docs\HAMLAB_Documentation.pdf" "dist\%APP_EXE_NAME%\docs\HAMLAB_Documentation.pdf" >nul
+copy /Y "image.png" "dist\%APP_EXE_NAME%\image.png" >nul
 
 echo [4/4] Creating installer.exe with Inno Setup (if available)...
 set ISCC_CMD=ISCC

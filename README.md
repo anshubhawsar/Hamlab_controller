@@ -25,6 +25,7 @@ This software is designed for technical and operational decisions where model ou
 - Layer-wise calculations and plotted process trends
 - Structured PDF export workflows
 - Built-in documentation launcher
+- GitHub release update detection with one-click installer launch
 - Windows installer generation for easy deployment
 
 ## System Architecture
@@ -86,6 +87,20 @@ This performs:
 	- `dist/HAMLab/HAMLab.exe`
 - Shareable installer executable:
 	- `dist/installer/HAMLab_Setup_v2_3.exe`
+
+## In-App Update Flow
+
+The app checks GitHub for the latest release and shows update status in the top bar.
+
+How it works:
+1. App queries the latest release from `anshubhawsar/Hamlab_controller`.
+2. If release tag is newer than current app version, it enables `Install Update`.
+3. Clicking `Install Update` downloads the latest setup `.exe` and launches installer.
+
+Important:
+- Publish updates using GitHub Releases (with a version tag like `v2.4`).
+- Attach the installer `.exe` asset (setup/installer name ending with `.exe`).
+- If no release installer asset exists, app cannot auto-install update.
 
 ## Publishing to GitHub
 

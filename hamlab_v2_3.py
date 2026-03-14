@@ -13,6 +13,12 @@ import tkinter.ttk as ttk
 import webbrowser
 import os
 import sys
+import re
+import json
+import threading
+import tempfile
+import urllib.request
+import urllib.error
 from dataclasses import dataclass, asdict
 
 try:
@@ -23,8 +29,11 @@ except ImportError:
 # --- THEME CONFIGURATION ---
 APP_NAME = "HAM LAB SMART CONTROLLER"
 APP_VERSION = "v2.3"
+GITHUB_REPO = "anshubhawsar/Hamlab_controller"
+GITHUB_LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 BASE_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(__file__))
 DOC_PDF_PATH = os.path.join(BASE_DIR, "docs", "HAMLAB_Documentation.pdf")
+LOGO_PATH = os.path.join(BASE_DIR, "image.png")
 
 ctk.set_appearance_mode("Light")
 ctk.set_default_color_theme("blue")
@@ -1691,6 +1700,10 @@ class WAAMPanel(ctk.CTkFrame):
 class ProHMI(ctk.CTk):
     def __init__(self):
         super().__init__()
+        self.latest_version = None
+        self.latest_installer_url = None
+        self.latest_release_url = None
+
         self.title(f"{APP_NAME} {APP_VERSION}")
         self.geometry("1600x950")
         self.minsize(1000, 600)
@@ -1710,7 +1723,16 @@ class ProHMI(ctk.CTk):
 
         title_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
         title_frame.pack(side="left", expand=True)
-        ctk.CTkLabel(title_frame, text="🔬 HAM LAB", font=("Arial", 16, "bold"), text_color=COLOR_TEXT_PRIMARY).pack(side="left")
+
+        self.logo_img = None
+        if os.path.exists(LOGO_PATH):
+            try:
+                self.logo_img = ctk.CTkImage(light_image=Image.open(LOGO_PATH), dark_image=Image.open(LOGO_PATH), size=(28, 28))
+                ctk.CTkLabel(title_frame, image=self.logo_img, text="").pack(side="left", padx=(0, 6))
+            except Exception:
+                self.logo_img = None
+
+        ctk.CTkLabel(title_frame, text="HAM LAB", font=("Arial", 16, "bold"), text_color=COLOR_TEXT_PRIMARY).pack(side="left")
         ctk.CTkLabel(title_frame, text=" • ", font=("Arial", 12), text_color=COLOR_TEXT_SECONDARY).pack(side="left", padx=5)
         ctk.CTkLabel(title_frame, text=f"Advanced Engineering Physics ({APP_VERSION})", font=("Arial", 11), text_color=COLOR_TEXT_SECONDARY).pack(side="left")
 
@@ -1732,6 +1754,29 @@ class ProHMI(ctk.CTk):
         for txt, cmd, color in buttons:
             ctk.CTkButton(nav_frame, text=txt, width=90, height=28, font=("Arial", 9, "bold"),
                           fg_color=color, text_color="white", corner_radius=5, command=cmd).pack(side="left", padx=3)
+
+        self.btn_install_update = ctk.CTkButton(
+            nav_frame,
+            text="Install Update",
+            width=110,
+            height=28,
+            font=("Arial", 9, "bold"),
+            fg_color=COLOR_BUTTON_SUCCESS,
+            hover_color="#008800",
+            text_color="white",
+            corner_radius=5,
+            state="disabled",
+            command=self.install_update,
+        )
+        self.btn_install_update.pack(side="right", padx=3)
+
+        self.lbl_update_status = ctk.CTkLabel(
+            nav_frame,
+            text="Checking updates...",
+            font=("Arial", 9, "bold"),
+            text_color=COLOR_TEXT_SECONDARY,
+        )
+        self.lbl_update_status.pack(side="right", padx=8)
 
         self.main_container = ctk.CTkFrame(self, fg_color=COLOR_BG_PRIMARY)
         self.main_container.grid(row=1, column=0, sticky="nsew", padx=12, pady=12)
@@ -1759,6 +1804,120 @@ class ProHMI(ctk.CTk):
         self.copyright_label.pack(side="bottom", pady=2)
 
         self.show_home()
+        self.after(1500, self.check_for_updates_async)
+
+    def _normalize_version(self, raw):
+        cleaned = str(raw).strip().lower().replace("v", "")
+        pieces = []
+        for token in re.split(r"[.-]", cleaned):
+            match = re.match(r"^(\d+)", token)
+            if match:
+                pieces.append(int(match.group(1)))
+            else:
+                break
+        return tuple(pieces) if pieces else (0,)
+
+    def _is_newer_version(self, candidate, current):
+        a = list(self._normalize_version(candidate))
+        b = list(self._normalize_version(current))
+        max_len = max(len(a), len(b))
+        a.extend([0] * (max_len - len(a)))
+        b.extend([0] * (max_len - len(b)))
+        return tuple(a) > tuple(b)
+
+    def check_for_updates_async(self):
+        self.lbl_update_status.configure(text="Checking updates...", text_color=COLOR_TEXT_SECONDARY)
+        self.btn_install_update.configure(state="disabled")
+        threading.Thread(target=self._check_updates_worker, daemon=True).start()
+
+    def _check_updates_worker(self):
+        try:
+            req = urllib.request.Request(
+                GITHUB_LATEST_RELEASE_API,
+                headers={
+                    "Accept": "application/vnd.github+json",
+                    "User-Agent": "HAMLab-Controller-Updater",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=12) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+
+            latest_tag = payload.get("tag_name", "")
+            release_url = payload.get("html_url")
+            installer_url = None
+
+            for asset in payload.get("assets", []):
+                name = asset.get("name", "").lower()
+                if name.endswith(".exe") and ("setup" in name or "installer" in name):
+                    installer_url = asset.get("browser_download_url")
+                    break
+
+            if latest_tag and installer_url and self._is_newer_version(latest_tag, APP_VERSION):
+                self.after(0, lambda: self._on_update_available(latest_tag, installer_url, release_url))
+            else:
+                self.after(0, self._on_up_to_date)
+
+        except Exception:
+            self.after(0, self._on_update_check_failed)
+
+    def _on_update_available(self, latest_tag, installer_url, release_url):
+        self.latest_version = latest_tag
+        self.latest_installer_url = installer_url
+        self.latest_release_url = release_url
+        self.lbl_update_status.configure(text=f"Update: {latest_tag} available", text_color=COLOR_ACCENT_ORANGE)
+        self.btn_install_update.configure(state="normal")
+
+    def _on_up_to_date(self):
+        self.latest_version = None
+        self.latest_installer_url = None
+        self.lbl_update_status.configure(text="Up to date", text_color=COLOR_ACCENT_GREEN)
+        self.btn_install_update.configure(state="disabled")
+
+    def _on_update_check_failed(self):
+        self.lbl_update_status.configure(text="Update check failed", text_color=COLOR_ACCENT_RED)
+        self.btn_install_update.configure(state="disabled")
+
+    def install_update(self):
+        if not self.latest_installer_url:
+            messagebox.showinfo("No Update", "No installer URL found in latest GitHub release.")
+            if self.latest_release_url:
+                webbrowser.open(self.latest_release_url)
+            return
+
+        if not messagebox.askyesno("Install Update", f"Download and install {self.latest_version}?\n\nThe installer will run after download."):
+            return
+
+        self.btn_install_update.configure(state="disabled", text="Downloading...")
+        self.lbl_update_status.configure(text="Downloading update...", text_color=COLOR_TEXT_SECONDARY)
+        threading.Thread(target=self._download_update_worker, daemon=True).start()
+
+    def _download_update_worker(self):
+        try:
+            updates_dir = os.path.join(tempfile.gettempdir(), "hamlab_updates")
+            os.makedirs(updates_dir, exist_ok=True)
+            file_name = f"HAMLab_Setup_{str(self.latest_version).replace('/', '_')}.exe"
+            installer_path = os.path.join(updates_dir, file_name)
+
+            urllib.request.urlretrieve(self.latest_installer_url, installer_path)
+            self.after(0, lambda: self._on_update_downloaded(installer_path))
+        except Exception as e:
+            self.after(0, lambda: self._on_update_download_failed(str(e)))
+
+    def _on_update_downloaded(self, installer_path):
+        self.btn_install_update.configure(state="normal", text="Install Update")
+        self.lbl_update_status.configure(text="Update ready to install", text_color=COLOR_ACCENT_GREEN)
+
+        if messagebox.askyesno("Run Installer", "Update downloaded successfully.\n\nRun installer now?"):
+            try:
+                os.startfile(installer_path)
+                self.after(600, self.destroy)
+            except Exception as e:
+                messagebox.showerror("Installer Launch Error", str(e))
+
+    def _on_update_download_failed(self, error_text):
+        self.btn_install_update.configure(state="normal", text="Install Update")
+        self.lbl_update_status.configure(text="Update download failed", text_color=COLOR_ACCENT_RED)
+        messagebox.showerror("Update Error", f"Could not download installer.\n\n{error_text}")
 
     def show_home(self): 
         self.select_frame(self.frame_home)
