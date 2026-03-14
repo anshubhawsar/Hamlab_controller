@@ -11,10 +11,13 @@ AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 OutputDir=..\dist\installer
-OutputBaseFilename=HAMLab_Setup_v2_3
+OutputBaseFilename=OneClick_Installer
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+CloseApplications=yes
+RestartApplications=no
+CloseApplicationsFilter={#MyAppExeName}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -31,3 +34,10 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+Filename: "{cmd}"; Parameters: "/C taskkill /F /IM {#MyAppExeName}"; Flags: runhidden skipifdoesntexist
+
+[UninstallDelete]
+; Remove any residual runtime/temp artifacts under install path.
+Type: filesandordirs; Name: "{app}"

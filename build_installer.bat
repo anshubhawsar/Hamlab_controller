@@ -25,25 +25,35 @@ copy /Y "docs\HAMLAB_Documentation.pdf" "dist\%APP_EXE_NAME%\docs\HAMLAB_Documen
 copy /Y "image.png" "dist\%APP_EXE_NAME%\image.png" >nul
 
 echo [4/4] Creating installer.exe with Inno Setup (if available)...
-set ISCC_CMD=ISCC
-where %ISCC_CMD% >nul 2>nul
-if %ERRORLEVEL% neq 0 (
-    if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set ISCC_CMD="%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
-)
-if %ERRORLEVEL% neq 0 (
-    if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set ISCC_CMD="%ProgramFiles%\Inno Setup 6\ISCC.exe"
-)
-if %ERRORLEVEL% neq 0 (
-    if exist "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" set ISCC_CMD="%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
-)
+set "ISCC_CMD="
+where ISCC >nul 2>nul
+if %ERRORLEVEL%==0 set "ISCC_CMD=ISCC"
+if "%ISCC_CMD%"=="" if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC_CMD=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
+if "%ISCC_CMD%"=="" if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC_CMD=%ProgramFiles%\Inno Setup 6\ISCC.exe"
+if "%ISCC_CMD%"=="" if exist "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" set "ISCC_CMD=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
 
-%ISCC_CMD% installer\HAMLAB_Setup.iss >nul 2>nul
-if %ERRORLEVEL%==0 (
-    echo Installer created in dist\installer\
-) else (
+if "%ISCC_CMD%"=="" (
     echo Inno Setup compiler not found.
     echo Install Inno Setup from: https://jrsoftware.org/isinfo.php
     echo Then run this file again to generate installer.exe.
+) else (
+    if /I "%ISCC_CMD%"=="ISCC" (
+        ISCC installer\HAMLAB_Setup.iss >nul 2>nul
+    ) else (
+        "%ISCC_CMD%" installer\HAMLAB_Setup.iss >nul 2>nul
+    )
+)
+
+if %ERRORLEVEL%==0 (
+    if exist "dist\installer\OneClick_Installer.exe" (
+        copy /Y "dist\installer\OneClick_Installer.exe" "OneClick_Installer.exe" >nul
+    )
+    echo Installer created: dist\installer\OneClick_Installer.exe
+    echo Top-level copy: OneClick_Installer.exe
+) else (
+    if not "%ISCC_CMD%"=="" (
+        echo Inno Setup compile failed. Check installer\HAMLAB_Setup.iss
+    )
 )
 
 echo Build complete.
