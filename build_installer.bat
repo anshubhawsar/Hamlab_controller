@@ -4,19 +4,26 @@ setlocal
 set APP_EXE_NAME=HAMLab
 set APP_VERSION=v2_3
 
-echo [1/4] Creating virtual environment if needed...
+echo [1/5] Creating virtual environment if needed...
 if not exist ".venv\Scripts\python.exe" (
     python -m venv .venv
 )
 
 call .venv\Scripts\activate.bat
 
-echo [2/4] Installing dependencies...
+echo [2/5] Installing dependencies...
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 
-echo [3/4] Building desktop executable with PyInstaller...
-pyinstaller --noconfirm --clean --windowed --name %APP_EXE_NAME% --add-data "docs\HAMLAB_Documentation.pdf;docs" --add-data "image.png;." hamlab.py
+echo [3/5] Generating app icon from image.png...
+python -c "from PIL import Image; img=Image.open('image.png').convert('RGBA'); img.save('hamlab_icon.ico', format='ICO', sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])"
+if %ERRORLEVEL% neq 0 (
+    echo Failed to generate hamlab_icon.ico from image.png
+    exit /b 1
+)
+
+echo [4/5] Building desktop executable with PyInstaller...
+pyinstaller --noconfirm --clean --windowed --name %APP_EXE_NAME% --icon "hamlab_icon.ico" --add-data "docs\HAMLAB_Documentation.pdf;docs" --add-data "image.png;." hamlab.py
 
 if not exist "dist\%APP_EXE_NAME%\docs" (
     mkdir "dist\%APP_EXE_NAME%\docs"
@@ -24,7 +31,7 @@ if not exist "dist\%APP_EXE_NAME%\docs" (
 copy /Y "docs\HAMLAB_Documentation.pdf" "dist\%APP_EXE_NAME%\docs\HAMLAB_Documentation.pdf" >nul
 copy /Y "image.png" "dist\%APP_EXE_NAME%\image.png" >nul
 
-echo [4/4] Creating installer.exe with Inno Setup (if available)...
+echo [5/5] Creating installer.exe with Inno Setup (if available)...
 set "ISCC_CMD="
 where ISCC >nul 2>nul
 if %ERRORLEVEL%==0 set "ISCC_CMD=ISCC"

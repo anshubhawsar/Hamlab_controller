@@ -15,6 +15,7 @@ OutputBaseFilename=OneClick_Installer
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\hamlab_icon.ico
 CloseApplications=yes
 RestartApplications=no
 CloseApplicationsFilter={#MyAppExeName}
