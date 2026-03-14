@@ -19,6 +19,7 @@ import threading
 import tempfile
 import urllib.request
 import urllib.error
+import zipfile
 from dataclasses import dataclass, asdict
 
 try:
@@ -1704,6 +1705,7 @@ class ProHMI(ctk.CTk):
         self.latest_version = None
         self.latest_installer_url = None
         self.latest_release_url = None
+        self.latest_asset_name = None
 
         self.title(f"{APP_NAME} {APP_VERSION}")
         self.geometry("1600x950")
@@ -1846,15 +1848,21 @@ class ProHMI(ctk.CTk):
             latest_tag = payload.get("tag_name", "")
             release_url = payload.get("html_url")
             installer_url = None
+            asset_name = None
 
             for asset in payload.get("assets", []):
                 name = asset.get("name", "").lower()
                 if name.endswith(".exe") and ("setup" in name or "installer" in name):
                     installer_url = asset.get("browser_download_url")
+                    asset_name = asset.get("name", "")
+                    break
+                if name.endswith(".zip") and ("setup" in name or "installer" in name):
+                    installer_url = asset.get("browser_download_url")
+                    asset_name = asset.get("name", "")
                     break
 
             if latest_tag and installer_url and self._is_newer_version(latest_tag, APP_VERSION):
-                self.after(0, lambda: self._on_update_available(latest_tag, installer_url, release_url))
+                self.after(0, lambda: self._on_update_available(latest_tag, installer_url, release_url, asset_name))
             else:
                 self.after(0, self._on_up_to_date)
 
@@ -1870,22 +1878,25 @@ class ProHMI(ctk.CTk):
         except Exception:
             self.after(0, lambda: self._on_update_check_failed("Unknown error"))
 
-    def _on_update_available(self, latest_tag, installer_url, release_url):
+    def _on_update_available(self, latest_tag, installer_url, release_url, asset_name):
         self.latest_version = latest_tag
         self.latest_installer_url = installer_url
         self.latest_release_url = release_url
+        self.latest_asset_name = asset_name or ""
         self.lbl_update_status.configure(text=f"Update: {latest_tag} available", text_color=COLOR_ACCENT_ORANGE)
         self.btn_install_update.configure(state="normal")
 
     def _on_up_to_date(self):
         self.latest_version = None
         self.latest_installer_url = None
+        self.latest_asset_name = None
         self.lbl_update_status.configure(text="Up to date", text_color=COLOR_ACCENT_GREEN)
         self.btn_install_update.configure(state="disabled")
 
     def _on_no_release_found(self):
         self.latest_version = None
         self.latest_installer_url = None
+        self.latest_asset_name = None
         self.lbl_update_status.configure(text="No GitHub release published", text_color=COLOR_ACCENT_ORANGE)
         self.btn_install_update.configure(state="disabled")
 
@@ -1918,10 +1929,32 @@ class ProHMI(ctk.CTk):
         try:
             updates_dir = os.path.join(tempfile.gettempdir(), "hamlab_updates")
             os.makedirs(updates_dir, exist_ok=True)
-            file_name = f"HAMLab_Setup_{str(self.latest_version).replace('/', '_')}.exe"
-            installer_path = os.path.join(updates_dir, file_name)
+            asset_name = self.latest_asset_name or ""
+            is_zip_asset = asset_name.lower().endswith(".zip")
+            if is_zip_asset:
+                zip_name = f"HAMLab_Setup_{str(self.latest_version).replace('/', '_')}.zip"
+                zip_path = os.path.join(updates_dir, zip_name)
+                urllib.request.urlretrieve(self.latest_installer_url, zip_path)
 
-            urllib.request.urlretrieve(self.latest_installer_url, installer_path)
+                installer_path = None
+                with zipfile.ZipFile(zip_path, "r") as zf:
+                    exe_candidates = [
+                        n for n in zf.namelist()
+                        if n.lower().endswith(".exe") and ("setup" in n.lower() or "installer" in n.lower())
+                    ]
+                    if not exe_candidates:
+                        exe_candidates = [n for n in zf.namelist() if n.lower().endswith(".exe")]
+                    if not exe_candidates:
+                        raise RuntimeError("ZIP asset contains no installer EXE.")
+
+                    selected = exe_candidates[0]
+                    extracted = zf.extract(selected, path=updates_dir)
+                    installer_path = os.path.abspath(extracted)
+            else:
+                file_name = f"HAMLab_Setup_{str(self.latest_version).replace('/', '_')}.exe"
+                installer_path = os.path.join(updates_dir, file_name)
+                urllib.request.urlretrieve(self.latest_installer_url, installer_path)
+
             self.after(0, lambda: self._on_update_downloaded(installer_path))
         except Exception as e:
             self.after(0, lambda: self._on_update_download_failed(str(e)))
