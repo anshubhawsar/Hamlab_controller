@@ -31,6 +31,7 @@ APP_NAME = "HAM LAB SMART CONTROLLER"
 APP_VERSION = "v2.3"
 GITHUB_REPO = "anshubhawsar/Hamlab_controller"
 GITHUB_LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+GITHUB_RELEASES_PAGE = f"https://github.com/{GITHUB_REPO}/releases"
 BASE_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(__file__))
 DOC_PDF_PATH = os.path.join(BASE_DIR, "docs", "HAMLAB_Documentation.pdf")
 LOGO_PATH = os.path.join(BASE_DIR, "image.png")
@@ -1857,8 +1858,17 @@ class ProHMI(ctk.CTk):
             else:
                 self.after(0, self._on_up_to_date)
 
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                self.after(0, self._on_no_release_found)
+            elif e.code == 403:
+                self.after(0, self._on_rate_limited)
+            else:
+                self.after(0, lambda: self._on_update_check_failed(f"HTTP {e.code}"))
+        except urllib.error.URLError as e:
+            self.after(0, lambda: self._on_update_check_failed(str(e.reason)))
         except Exception:
-            self.after(0, self._on_update_check_failed)
+            self.after(0, lambda: self._on_update_check_failed("Unknown error"))
 
     def _on_update_available(self, latest_tag, installer_url, release_url):
         self.latest_version = latest_tag
@@ -1873,8 +1883,21 @@ class ProHMI(ctk.CTk):
         self.lbl_update_status.configure(text="Up to date", text_color=COLOR_ACCENT_GREEN)
         self.btn_install_update.configure(state="disabled")
 
-    def _on_update_check_failed(self):
-        self.lbl_update_status.configure(text="Update check failed", text_color=COLOR_ACCENT_RED)
+    def _on_no_release_found(self):
+        self.latest_version = None
+        self.latest_installer_url = None
+        self.lbl_update_status.configure(text="No GitHub release published", text_color=COLOR_ACCENT_ORANGE)
+        self.btn_install_update.configure(state="disabled")
+
+    def _on_rate_limited(self):
+        self.lbl_update_status.configure(text="GitHub API rate-limited", text_color=COLOR_ACCENT_ORANGE)
+        self.btn_install_update.configure(state="disabled")
+
+    def _on_update_check_failed(self, reason=""):
+        msg = "Update check failed"
+        if reason:
+            msg = f"Update check failed ({reason})"
+        self.lbl_update_status.configure(text=msg, text_color=COLOR_ACCENT_RED)
         self.btn_install_update.configure(state="disabled")
 
     def install_update(self):
