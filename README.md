@@ -102,6 +102,8 @@ Important:
 - Attach the installer `.exe` asset (setup/installer name ending with `.exe`).
 - If no release installer asset exists, app cannot auto-install update.
 
+For full release instructions, see: `docs/UPDATER_FLOW.md`
+
 ## Publishing to GitHub
 
 Standard release flow:

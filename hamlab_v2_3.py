@@ -30,7 +30,7 @@ except ImportError:
 
 # --- THEME CONFIGURATION ---
 APP_NAME = "HAM LAB SMART CONTROLLER"
-APP_VERSION = "v2.4.5"
+APP_VERSION = "v2.4.6"
 GITHUB_REPO = "anshubhawsar/Hamlab_controller"
 GITHUB_LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 GITHUB_RELEASES_PAGE = f"https://github.com/{GITHUB_REPO}/releases"
@@ -802,13 +802,18 @@ class PMConsolidationPanel(ctk.CTkScrollableFrame):
         if not hasattr(self, 'last_pm_results'): 
             return messagebox.showwarning("Wait", "Run Calculation First")
         
+        temp_graph_path = None
         try:
             filename_ts = datetime.now().strftime('%Y%m%d_%H%M')
             initial_name = f"PM_Report_{filename_ts}.pdf"
-            filepath = filedialog.asksaveasfilename(initialfile=initial_name, filetypes=[("PDF Documents", "*.pdf")])
+            filepath = filedialog.asksaveasfilename(
+                defaultextension=".pdf",
+                initialfile=initial_name,
+                filetypes=[("PDF Documents", "*.pdf")]
+            )
             
             if filepath and FPDF:
-                temp_graph_path = "temp_pm_graph.png"
+                temp_graph_path = os.path.join(tempfile.gettempdir(), f"hamlab_pm_graph_{int(datetime.now().timestamp())}.png")
                 self.fig_pm.savefig(temp_graph_path, dpi=150, bbox_inches='tight')
 
                 pdf = PDFReport()
@@ -884,15 +889,18 @@ class PMConsolidationPanel(ctk.CTkScrollableFrame):
                 pdf.output(filepath)
                 webbrowser.open('file://' + filepath)
                 self.pm_msg.configure(text=f"Report Saved!")
-                
-                if os.path.exists(temp_graph_path):
-                    os.remove(temp_graph_path)
 
             elif not FPDF:
                 messagebox.showerror("Error", "FPDF library not installed.")
                 
         except Exception as e:
             messagebox.showerror("Report Error", str(e))
+        finally:
+            if temp_graph_path and os.path.exists(temp_graph_path):
+                try:
+                    os.remove(temp_graph_path)
+                except Exception:
+                    pass
 
 class HomePanel(ctk.CTkFrame):
     def __init__(self, master, nav_callbacks=None):
@@ -1121,11 +1129,15 @@ if FPDF:
             self.set_text_color(0)
             
             for row in table_data:
+                pct_inc = row.get('pct_inc')
+                if pct_inc is None:
+                    pct_inc = row.get('f_dec', 0.0)
+
                 self.cell(20, 7, str(row['layer']), 1, 0, 'C')
                 self.cell(35, 7, f"{row['area']:.2f}", 1, 0, 'C')
                 self.cell(35, 7, f"{row['pressure']:.2f}", 1, 0, 'C')
                 self.cell(30, 7, f"{row['force_kn']:.3f}", 1, 0, 'C')
-                self.cell(30, 7, f"{row['pct_inc']:.1f}%", 1, 1, 'C')
+                self.cell(30, 7, f"{pct_inc:.1f}%", 1, 1, 'C')
                 
                 if self.get_y() > 270:
                     self.add_page()
@@ -1533,6 +1545,7 @@ class ComparisonPanel(ctk.CTkFrame):
     def gen_report(self):
         if not hasattr(self, 'last_res'): return messagebox.showwarning("Wait", "Run Sim first")
         
+        temp_graph = None
         try:
             filename_ts = datetime.now().strftime('%Y%m%d_%H%M')
             initial_name = f"Comp_Report_{filename_ts}.pdf"
@@ -1540,7 +1553,7 @@ class ComparisonPanel(ctk.CTkFrame):
             
             if filepath and FPDF:
                 # 1. Save graph
-                temp_graph = "temp_comp_plot.png"
+                temp_graph = os.path.join(tempfile.gettempdir(), f"hamlab_comp_plot_{int(datetime.now().timestamp())}.png")
                 self.fig.savefig(temp_graph, dpi=150, bbox_inches='tight')
                 
                 # 2. Create PDF
@@ -1626,7 +1639,6 @@ class ComparisonPanel(ctk.CTkFrame):
                     pdf.cell(0, 8, "Visual Comparison", 0, 1, 'L')
                     pdf.image(temp_graph, x=10, w=190)
                     pdf.ln(5)
-                    os.remove(temp_graph)
 
                 # 6. Conclusion
                 pdf.set_font("Arial", "B", 11)
@@ -1660,6 +1672,12 @@ class ComparisonPanel(ctk.CTkFrame):
                 
         except Exception as e:
             messagebox.showerror("Report Error", str(e))
+        finally:
+            if temp_graph and os.path.exists(temp_graph):
+                try:
+                    os.remove(temp_graph)
+                except Exception:
+                    pass
 
 
 # 🖥️ UI: WAAM PANEL

@@ -2,7 +2,7 @@
 setlocal
 
 set APP_EXE_NAME=HAMLab
-set APP_VERSION=v2_4_4
+set APP_VERSION=v2_4_6
 
 echo [1/5] Creating virtual environment if needed...
 if not exist ".venv\Scripts\python.exe" (
@@ -53,10 +53,10 @@ if "%ISCC_CMD%"=="" (
 
 if %ERRORLEVEL%==0 (
     if exist "dist\installer\OneClick_Installer.exe" (
-        copy /Y "dist\installer\OneClick_Installer.exe" "OneClick_Installer.exe" >nul
+        powershell -NoProfile -Command "Compress-Archive -Path 'dist\\installer\\OneClick_Installer.exe' -DestinationPath 'dist\\installer\\OneClick_Installer.zip' -CompressionLevel Optimal -Force"
     )
     echo Installer created: dist\installer\OneClick_Installer.exe
-    echo Top-level copy: OneClick_Installer.exe
+    echo ZIP created: dist\installer\OneClick_Installer.zip
 ) else (
     if not "%ISCC_CMD%"=="" (
         echo Inno Setup compile failed. Check installer\HAMLAB_Setup.iss
