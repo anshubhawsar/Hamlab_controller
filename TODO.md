@@ -10,7 +10,8 @@
   - [x] `installer/HAMLAB_Setup.iss` → `MyAppVersion "2.4.9"`
   - [x] `create_release.py` → TAG v2.4.9 + release notes
   - [x] `publish_release.py` → TAG v2.4.9 + release notes
-- [ ] Build new installer via `build_installer.bat`
-- [ ] Commit & push version bump + built installer
+- [x] Build new installer via `build_installer.bat`
+- [x] Commit & push version bump + built installer
+- [x] Restore and update release scripts (create_release.py, publish_release.py) to v2.4.9
 - [ ] Create git tag `v2.4.9` and push it
 - [ ] Create GitHub Release v2.4.9 and upload installer asset
