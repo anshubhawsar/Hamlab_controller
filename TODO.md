@@ -1,24 +1,16 @@
-# Task: Add manual PWM speed control (active in MANUAL mode) to cooling panel
+# Task: Create new release v2.4.9 (manual PWM speed control + cooling fixes)
 
-Reference: ESP32 cooling sketch (inlet/outlet temp, flow, PWM, pump control).
-
-## Status: COMPLETE
+## Status: IN PROGRESS
 
 ## Plan Steps
-- [x] Add `set_pwm(value)` method to `cooling_controller.py`
-- [x] Add manual PWM slider control to `gui_integration.py` controls card
-- [x] Wire slider enable/disable based on connection + mode (enabled only in MANUAL mode)
-- [x] Display live PWM value
-- [x] Verify imports and UI build
-
-## Additional fixes (Pump not running + flow not showing)
-- [x] `serial_manager.py`: block parser now captures `Flow Rate` / `PWM` lines (flow was not showing)
-- [x] `cooling_controller.py`: `set_pwm(value)` added
-- [x] `gui_integration.py`: manual PWM slider control wired to MANUAL mode
-- [x] Firmware: disabled zero-flow guard (`ENABLE_ZERO_FLOW_GUARD 0`) so pump stays ON without flow
-- [x] Firmware: disabled sensor-fault guard (`ENABLE_SENSOR_GUARD 0`) so pump stays ON with a missing DS18B20
-- [x] Python modules compile (py_compile) — PASSED
-
-## Note
-- Both `FLASH_THIS_FIRMWARE.ino` and `esp32_firmware/cooling_controller_firmware.ino` updated.
-- Re-flash the firmware to the ESP32, reconnect, and test Pump ON in the Cooling panel.
+- [x] Commit current PWM/cooling update and push to GitHub
+- [x] Bump version to v2.4.9:
+  - [x] `hamlab_v2_3.py` → `APP_VERSION = "v2.4.9"`
+  - [x] `build_installer.bat` → `APP_VERSION=v2_4_9`
+  - [x] `installer/HAMLAB_Setup.iss` → `MyAppVersion "2.4.9"`
+  - [x] `create_release.py` → TAG v2.4.9 + release notes
+  - [x] `publish_release.py` → TAG v2.4.9 + release notes
+- [ ] Build new installer via `build_installer.bat`
+- [ ] Commit & push version bump + built installer
+- [ ] Create git tag `v2.4.9` and push it
+- [ ] Create GitHub Release v2.4.9 and upload installer asset

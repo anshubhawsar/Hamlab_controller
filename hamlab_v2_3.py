@@ -40,7 +40,7 @@ except Exception:
 
 # --- THEME CONFIGURATION ---
 APP_NAME = "HAM LAB SMART CONTROLLER"
-APP_VERSION = "v2.4.6"
+APP_VERSION = "v2.4.9"
 GITHUB_REPO = "anshubhawsar/Hamlab_controller"
 GITHUB_LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 GITHUB_RELEASES_PAGE = f"https://github.com/{GITHUB_REPO}/releases"
