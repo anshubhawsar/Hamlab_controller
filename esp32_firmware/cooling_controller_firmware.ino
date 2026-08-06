@@ -323,13 +323,19 @@ void runSafetyChecks()
         return;
     }
 
-    // No fault -> clear
+// No fault -> clear the error message.
     if (lastError.length() > 0)
     {
         lastError = "";
-        // Only clear the buzzer if the temperature is no longer critical.
-        if (outletTemp <= (HIGH_TEMP_ALARM_C - 2.0f))
-            buzzerOFF();
+    }
+
+    // Turn the buzzer OFF as soon as the temperature is no longer critical.
+    // This is evaluated INDEPENDENTLY of lastError so the buzzer can never
+    // latch on permanently (previous bug: if lastError was cleared while the
+    // temp was still between 43-45 C, the clear block was skipped forever).
+    if (outletTemp <= (HIGH_TEMP_ALARM_C - 2.0f))
+    {
+        buzzerOFF();
     }
 }
 
