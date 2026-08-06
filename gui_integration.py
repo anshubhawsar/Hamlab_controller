@@ -202,19 +202,23 @@ class CoolingPanel(ctk.CTkScrollableFrame):
 
         self._build_controls_card(ctrl_card)
 
-        # ------------------------------------------------------------------
+# ------------------------------------------------------------------
         # Live Graph Dashboard card
         # ------------------------------------------------------------------
-        if self.graph is not None:
-            graph_card = ctk.CTkFrame(
-                self,
-                fg_color=self._c("bg_secondary", "#ffffff"),
-                corner_radius=12,
-                border_width=2,
-                border_color=self._c("accent_blue", "#0052cc"),
-            )
-            graph_card.pack(fill="x", padx=18, pady=10)
-            self._build_graph_card(graph_card)
+        # Always build the graph card. _build_graph_card() creates the
+        # dashboard (setting self.graph) and gracefully shows a message if
+        # Matplotlib is unavailable. (Previously this was gated on
+        # self.graph being non-None, but self.graph is only set inside
+        # _build_graph_card(), so the card was never shown.)
+        graph_card = ctk.CTkFrame(
+            self,
+            fg_color=self._c("bg_secondary", "#ffffff"),
+            corner_radius=12,
+            border_width=2,
+            border_color=self._c("accent_blue", "#0052cc"),
+        )
+        graph_card.pack(fill="x", padx=18, pady=10)
+        self._build_graph_card(graph_card)
 
         # ------------------------------------------------------------------
         # AI Learning card (RL training-data collection)
@@ -977,7 +981,7 @@ class CoolingPanel(ctk.CTkScrollableFrame):
             text_color=self._c("accent_blue", "#0052cc") if mode == "AUTO" else self._c("accent_orange", "#974f0c"),
         )
         self.lbl_flow.configure(
-            text=f"{flow_rate:.2f} L/min",
+            text=f"{flow_rate:.2f} ML/Sec ",
             text_color=self._c("accent_blue", "#0052cc"),
         )
         self.lbl_pwm.configure(
