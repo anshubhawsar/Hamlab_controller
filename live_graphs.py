@@ -146,12 +146,12 @@ class LiveGraphDashboard:
             [], [], color=self._colors["accent_purple"], lw=1.4,
             linestyle="--", label="dT (out-in)",
         )
-        ax_temp.set_title("Temperature (°C)", fontsize=11, fontweight="bold",
+        ax_temp.set_title("Temperature (°C)", fontsize=13, fontweight="bold",
                           color=text_primary)
-        ax_temp.set_ylabel("°C", fontsize=10, color=text_secondary)
+        ax_temp.set_ylabel("°C", fontsize=13, color=text_secondary)
         ax_temp.grid(True, color=grid_color, linewidth=0.6, alpha=0.7)
-        ax_temp.legend(loc="upper left", fontsize=8, framealpha=0.9)
-        ax_temp.tick_params(colors=text_secondary, labelsize=8)
+        ax_temp.legend(loc="upper left", fontsize=10, framealpha=0.9)
+        ax_temp.tick_params(colors=text_secondary, labelsize=12)
         self._format_time_axis(ax_temp)
 
         # --- Flow subplot ---
@@ -161,12 +161,12 @@ class LiveGraphDashboard:
             [], [], color=self._colors["accent_teal"], lw=1.8,
             label="Flow Rate",
         )
-        ax_flow.set_title("Flow Rate (L/min)", fontsize=11, fontweight="bold",
+        ax_flow.set_title("Flow Rate (L/min)", fontsize=13, fontweight="bold",
                           color=text_primary)
-        ax_flow.set_ylabel("L/min", fontsize=10, color=text_secondary)
+        ax_flow.set_ylabel("L/min", fontsize=13, color=text_secondary)
         ax_flow.grid(True, color=grid_color, linewidth=0.6, alpha=0.7)
-        ax_flow.legend(loc="upper left", fontsize=8, framealpha=0.9)
-        ax_flow.tick_params(colors=text_secondary, labelsize=8)
+        ax_flow.legend(loc="upper left", fontsize=10, framealpha=0.9)
+        ax_flow.tick_params(colors=text_secondary, labelsize=12)
         self._format_time_axis(ax_flow)
 
         # --- Pump subplot (PWM + speed) ---
@@ -180,13 +180,13 @@ class LiveGraphDashboard:
             [], [], color=self._colors["accent_green"], lw=1.4,
             linestyle="-", label="Pump Speed (%)",
         )
-        ax_pump.set_title("Pump - PWM & Speed", fontsize=11, fontweight="bold",
+        ax_pump.set_title("Pump - PWM & Speed", fontsize=13, fontweight="bold",
                           color=text_primary)
-        ax_pump.set_ylabel("", fontsize=10, color=text_secondary)
-        ax_pump.set_xlabel("Time", fontsize=10, color=text_secondary)
+        ax_pump.set_ylabel("", fontsize=13, color=text_secondary)
+        ax_pump.set_xlabel("Time", fontsize=13, color=text_secondary)
         ax_pump.grid(True, color=grid_color, linewidth=0.6, alpha=0.7)
-        ax_pump.legend(loc="upper left", fontsize=8, framealpha=0.9)
-        ax_pump.tick_params(colors=text_secondary, labelsize=8)
+        ax_pump.legend(loc="upper left", fontsize=10, framealpha=0.9)
+        ax_pump.tick_params(colors=text_secondary, labelsize=12)
         self._format_time_axis(ax_pump)
 
         # Keep references for the update step.
