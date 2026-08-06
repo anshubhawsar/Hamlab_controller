@@ -221,7 +221,8 @@ class CoolingController:
         """Return a snapshot of the whole cooling system state.
 
         Returns a dict with keys: ``connected``, ``port``, ``inlet_temp``,
-        ``outlet_temp``, ``pump``, ``mode``, ``flow_rate`` and ``pwm``.
+        ``outlet_temp``, ``pump``, ``mode``, ``flow_rate``, ``pwm`` and
+        ``alarm_status``.
         """
         with self._lock:
             return {
@@ -233,7 +234,19 @@ class CoolingController:
                 "mode": self._mode,
                 "flow_rate": self._flow_rate,
                 "pwm": self._pwm,
+                "alarm_status": self.compute_alarm_status(self._outlet_temp),
             }
+
+    @staticmethod
+    def compute_alarm_status(outlet_temp: Optional[float]) -> str:
+        """Return the alarm status based on the outlet temperature.
+
+        Returns ``"HIGH_TEMP"`` when the outlet reaches/exceeds 45 °C,
+        otherwise ``"NONE"``.
+        """
+        if outlet_temp is not None and outlet_temp >= 45.0:
+            return "HIGH_TEMP"
+        return "NONE"
 
     # ------------------------------------------------------------------
     # SerialManager callbacks (arrive from the serial reader thread)

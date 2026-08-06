@@ -90,10 +90,10 @@
 // MID_2 < T <= HIGH_1         -> 85%
 // T > HIGH_1                  -> 100%
 #define OUTLET_T_LOW_1   30.0f
-#define OUTLET_T_LOW_2   33.0f
-#define OUTLET_T_MID_1   36.0f
-#define OUTLET_T_MID_2   38.0f
-#define OUTLET_T_HIGH_1  40.0f
+#define OUTLET_T_LOW_2   36.0f
+#define OUTLET_T_MID_1   39.0f
+#define OUTLET_T_MID_2   44.0f
+#define OUTLET_T_HIGH_1  50.0f
 
 // Sensor error debounce (consecutive bad reads before declaring a fault)
 #define SENSOR_ERROR_CONFIRMATIONS 3

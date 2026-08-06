@@ -22,7 +22,10 @@ module (which avoids circular-import problems).
 
 from __future__ import annotations
 
+import os
 import threading
+from datetime import datetime
+from tkinter import filedialog
 from typing import Callable, Dict, List, Optional
 
 try:
@@ -35,6 +38,25 @@ import customtkinter as ctk
 # Local modules (created as part of the ESP32 integration).
 from cooling_controller import CoolingController
 from serial_manager import SerialManager
+
+# AI Learning Module for RL training-data collection (additive/optional).
+try:
+    from ai_learning import AILearningCollector
+    _AI_AVAILABLE = True
+except Exception:
+    AILearningCollector = None  # type: ignore
+    _AI_AVAILABLE = False
+
+# Live Graph Dashboard (Matplotlib) - additive/optional.
+from live_graphs import LiveGraphDashboard, GRAPH_UPDATE_INTERVAL_MS
+
+# Material types offered in the AI Learning card.
+AI_MATERIALS = ["Al6061", "Al2195", "Mild Steel", "Copper", "Custom"]
+
+#: Default export directory for graphs/images/PDFs.
+EXPORT_DIR_DEFAULT = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "logs", "graphs"
+)
 
 
 class CoolingPanel(ctk.CTkScrollableFrame):
@@ -79,10 +101,28 @@ class CoolingPanel(ctk.CTkScrollableFrame):
         self._pwm: int = 0
         self._buzzer_latched = False
 
+        # --- AI Learning Collector (RL training-data collection) ---
+        self.ai_collector = None
+        if _AI_AVAILABLE and AILearningCollector is not None:
+            try:
+                self.ai_collector = AILearningCollector(
+                    self.controller,
+                    on_status=self._on_ai_status,
+                )
+            except Exception:
+                self.ai_collector = None
+
+        # --- Live Graph Dashboard (Matplotlib) - created in _build_ui ---
+        self.graph = None
+        self._graph_after_id: Optional[str] = None
+
         # ------------------------------------------------------------------
         # Layout
         # ------------------------------------------------------------------
         self._build_ui()
+
+        # Start the periodic graph redraw loop (1 second).
+        self._schedule_graph_update()
 
         # Populate the port dropdown in the background.
         threading.Thread(target=self._refresh_ports_worker, daemon=True).start()
@@ -161,6 +201,243 @@ class CoolingPanel(ctk.CTkScrollableFrame):
         ctrl_card.pack(fill="x", padx=18, pady=10)
 
         self._build_controls_card(ctrl_card)
+
+        # ------------------------------------------------------------------
+        # Live Graph Dashboard card
+        # ------------------------------------------------------------------
+        if self.graph is not None:
+            graph_card = ctk.CTkFrame(
+                self,
+                fg_color=self._c("bg_secondary", "#ffffff"),
+                corner_radius=12,
+                border_width=2,
+                border_color=self._c("accent_blue", "#0052cc"),
+            )
+            graph_card.pack(fill="x", padx=18, pady=10)
+            self._build_graph_card(graph_card)
+
+        # ------------------------------------------------------------------
+        # AI Learning card (RL training-data collection)
+        # ------------------------------------------------------------------
+        if _AI_AVAILABLE and self.ai_collector is not None:
+            ai_card = ctk.CTkFrame(
+                self,
+                fg_color=self._c("bg_secondary", "#ffffff"),
+                corner_radius=12,
+                border_width=2,
+                border_color=self._c("accent_blue", "#0052cc"),
+            )
+            ai_card.pack(fill="x", padx=18, pady=10)
+            self._build_ai_card(ai_card)
+
+    def _build_ai_card(self, parent) -> None:
+        """Build the AI Learning data-collection card."""
+        ctk.CTkLabel(
+            parent,
+            text="🧠 AI LEARNING - RL TRAINING DATA",
+            font=("Arial", 14, "bold"),
+            text_color=self._c("accent_blue", "#0052cc"),
+        ).pack(anchor="w", padx=20, pady=(14, 4))
+
+        ctk.CTkLabel(
+            parent,
+            text=(
+                "Continuously collects operational data every second to build a "
+                "dataset for offline reinforcement-learning training. "
+                "Data is saved to logs/ai_training_data/."
+            ),
+            font=("Arial", 11),
+            wraplength=720,
+            justify="left",
+            text_color=self._c("text_secondary", "#3d4756"),
+        ).pack(anchor="w", padx=20, pady=(0, 10))
+
+        # --- Row 1: Experiment ID + Material ---
+        row1 = ctk.CTkFrame(parent, fg_color="transparent")
+        row1.pack(fill="x", padx=20, pady=4)
+
+        ctk.CTkLabel(
+            row1,
+            text="Experiment ID",
+            font=("Arial", 12, "bold"),
+            text_color=self._c("text_primary", "#0d1b2a"),
+        ).grid(row=0, column=0, sticky="w", padx=(0, 8))
+        self.ent_exp_id = ctk.CTkEntry(
+            row1,
+            width=180,
+            placeholder_text="EXP-001",
+            fg_color=self._c("input_bg", "#ffffff"),
+            text_color=self._c("input_text", "#0d1b2a"),
+            border_width=2,
+            border_color=self._c("input_border", "#b3bcc8"),
+            corner_radius=6,
+            font=("Arial", 12),
+        )
+        self.ent_exp_id.grid(row=0, column=1, sticky="w")
+        self.ent_exp_id.insert(0, "EXP-001")
+
+        ctk.CTkLabel(
+            row1,
+            text="Material",
+            font=("Arial", 12, "bold"),
+            text_color=self._c("text_primary", "#0d1b2a"),
+        ).grid(row=0, column=2, sticky="w", padx=(24, 8))
+        self.opt_material = ctk.CTkOptionMenu(
+            row1,
+            values=list(AI_MATERIALS),
+            fg_color=self._c("input_bg", "#ffffff"),
+            button_color=self._c("accent_blue", "#0052cc"),
+            button_hover_color=self._c("accent_blue", "#0052cc"),
+            text_color=self._c("input_text", "#0d1b2a"),
+            dropdown_fg_color=self._c("bg_secondary", "#ffffff"),
+            dropdown_hover_color=self._c("accent_blue_light", "#e3f0ff"),
+            dropdown_text_color=self._c("input_text", "#0d1b2a"),
+            width=150,
+        )
+        self.opt_material.grid(row=0, column=3, sticky="w")
+
+        # --- Row 2: Thickness + Notes ---
+        row2 = ctk.CTkFrame(parent, fg_color="transparent")
+        row2.pack(fill="x", padx=20, pady=4)
+
+        ctk.CTkLabel(
+            row2,
+            text="Thickness (mm)",
+            font=("Arial", 12, "bold"),
+            text_color=self._c("text_primary", "#0d1b2a"),
+        ).grid(row=0, column=0, sticky="w", padx=(0, 8))
+        self.ent_thickness = ctk.CTkEntry(
+            row2,
+            width=120,
+            placeholder_text="8",
+            fg_color=self._c("input_bg", "#ffffff"),
+            text_color=self._c("input_text", "#0d1b2a"),
+            border_width=2,
+            border_color=self._c("input_border", "#b3bcc8"),
+            corner_radius=6,
+            font=("Arial", 12),
+        )
+        self.ent_thickness.grid(row=0, column=1, sticky="w")
+        self.ent_thickness.insert(0, "8")
+
+        ctk.CTkLabel(
+            row2,
+            text="User Notes",
+            font=("Arial", 12, "bold"),
+            text_color=self._c("text_primary", "#0d1b2a"),
+        ).grid(row=0, column=2, sticky="w", padx=(24, 8))
+        self.ent_notes = ctk.CTkEntry(
+            row2,
+            width=360,
+            placeholder_text="Optional experiment notes...",
+            fg_color=self._c("input_bg", "#ffffff"),
+            text_color=self._c("input_text", "#0d1b2a"),
+            border_width=2,
+            border_color=self._c("input_border", "#b3bcc8"),
+            corner_radius=6,
+            font=("Arial", 12),
+        )
+        self.ent_notes.grid(row=0, column=3, sticky="w")
+
+        # --- Buttons ---
+        btn_row = ctk.CTkFrame(parent, fg_color="transparent")
+        btn_row.pack(fill="x", padx=20, pady=(10, 4))
+
+        self.btn_ai_start = ctk.CTkButton(
+            btn_row,
+            text="▶ Start Collection",
+            width=170,
+            height=38,
+            fg_color=self._c("accent_green", "#216e4e"),
+            hover_color=self._c("accent_green", "#216e4e"),
+            command=self._on_ai_start,
+            font=("Arial", 12, "bold"),
+        )
+        self.btn_ai_start.pack(side="left", padx=4)
+
+        self.btn_ai_stop = ctk.CTkButton(
+            btn_row,
+            text="■ Stop Collection",
+            width=170,
+            height=38,
+            fg_color=self._c("accent_red", "#ae2a19"),
+            hover_color=self._c("accent_red", "#ae2a19"),
+            command=self._on_ai_stop,
+            state="disabled",
+            font=("Arial", 12, "bold"),
+        )
+        self.btn_ai_stop.pack(side="left", padx=4)
+
+        self.lbl_ai_status = ctk.CTkLabel(
+            parent,
+            text="Collection stopped. Configure experiment details and press Start.",
+            font=("Arial", 11, "italic"),
+            text_color=self._c("text_dim", "#6b7684"),
+            wraplength=720,
+            justify="left",
+        )
+        self.lbl_ai_status.pack(fill="x", padx=20, pady=(4, 14))
+
+    def _build_graph_card(self, parent) -> None:
+        """Build the Live Graph Dashboard card (Matplotlib canvas + export)."""
+        # Header row
+        header = ctk.CTkFrame(parent, fg_color="transparent")
+        header.pack(fill="x", padx=20, pady=(14, 4))
+        ctk.CTkLabel(
+            header,
+            text="📈 LIVE GRAPH DASHBOARD",
+            font=("Arial", 14, "bold"),
+            text_color=self._c("accent_blue", "#0052cc"),
+        ).pack(side="left")
+        ctk.CTkLabel(
+            header,
+            text="Last 10 minutes · updates every 1 s",
+            font=("Arial", 11, "italic"),
+            text_color=self._c("text_dim", "#6b7684"),
+        ).pack(side="right")
+
+        # Create the graph dashboard inside this card.
+        try:
+            self.graph = LiveGraphDashboard(
+                master=parent, colors=self._colors or None
+            )
+        except Exception:
+            self.graph = None
+
+        if self.graph is None:
+            ctk.CTkLabel(
+                parent,
+                text="Live graph dashboard unavailable (Matplotlib not installed).",
+                font=("Arial", 11, "italic"),
+                text_color=self._c("text_dim", "#6b7684"),
+            ).pack(fill="x", padx=20, pady=(0, 12))
+            return
+
+        # Export buttons
+        btn_row = ctk.CTkFrame(parent, fg_color="transparent")
+        btn_row.pack(fill="x", padx=20, pady=(4, 14))
+        self.btn_export_png = ctk.CTkButton(
+            btn_row,
+            text="💾 Save as PNG",
+            width=140,
+            height=32,
+            fg_color=self._c("accent_blue", "#0052cc"),
+            hover_color=self._c("accent_blue", "#0052cc"),
+            command=self._on_export_png,
+            font=("Arial", 12, "bold"),
+        )
+        self.btn_export_png.pack(side="left", padx=4)
+        self.btn_export_pdf = ctk.CTkButton(
+            btn_row,
+            text="📄 Export to PDF",
+            width=140,
+            height=32,
+            fg_color=self._c("accent_green", "#216e4e"),
+            hover_color=self._c("accent_green", "#216e4e"),
+            command=self._on_export_pdf,
+            font=("Arial", 12, "bold"),
+        )
+        self.btn_export_pdf.pack(side="left", padx=4)
 
     def _build_connection_card(self, parent) -> None:
         """Build the top connection card (indicator, port dropdown, connect)."""
@@ -537,6 +814,85 @@ class CoolingPanel(ctk.CTkScrollableFrame):
         self.btn_refresh.configure(state="disabled")
         threading.Thread(target=self._refresh_ports_worker, daemon=True).start()
 
+    # ------------------------------------------------------------------
+    # AI Learning event handlers
+    # ------------------------------------------------------------------
+    def _on_ai_start(self) -> None:
+        """Start the AI data collector with the entered experiment details."""
+        if self.ai_collector is None:
+            self._set_ai_status("AI Learning module is not available.", error=True)
+            return
+
+        exp_id = self.ent_exp_id.get().strip() or "EXP-001"
+        material = self.opt_material.get().strip() or "Unknown"
+        try:
+            thickness = float(self.ent_thickness.get().strip() or 0)
+        except Exception:
+            thickness = 0.0
+        notes = self.ent_notes.get().strip()
+
+        try:
+            self.ai_collector.set_experiment_id(exp_id)
+            self.ai_collector.set_material(material)
+            self.ai_collector.set_thickness(thickness)
+            self.ai_collector.set_notes(notes)
+        except Exception:
+            pass
+
+        ok = self.ai_collector.start()
+        if ok:
+            self.btn_ai_start.configure(state="disabled")
+            self.btn_ai_stop.configure(state="normal")
+            self._set_ai_status(
+                f"Collecting data for experiment {exp_id} ({material})... "
+                "Saving to logs/ai_training_data/.",
+                error=False,
+            )
+            self._log(f"AI Learning: started data collection for {exp_id}.")
+        else:
+            self._set_ai_status(
+                "Could not start data collection. Ensure the cooling system is connected.",
+                error=True,
+            )
+
+    def _on_ai_stop(self) -> None:
+        """Stop the AI data collector."""
+        if self.ai_collector is None:
+            return
+        try:
+            self.ai_collector.stop()
+        except Exception:
+            pass
+        self.btn_ai_start.configure(state="normal")
+        self.btn_ai_stop.configure(state="disabled")
+        self._set_ai_status(
+            "Collection stopped. The dataset file was closed and saved.",
+            error=False,
+        )
+        self._log("AI Learning: stopped data collection.")
+
+    def _on_ai_status(self, message: str, error: bool = False) -> None:
+        """Update the AI status label (called from the collector thread)."""
+        try:
+            self.after(0, lambda: self._set_ai_status(message, error))
+        except Exception:
+            pass
+
+    def _set_ai_status(self, message: str, error: bool = False) -> None:
+        """Set the AI status label text/color (main thread)."""
+        try:
+            color = (
+                self._c("accent_red", "#ae2a19")
+                if error
+                else self._c("accent_green", "#216e4e")
+            )
+            self.lbl_ai_status.configure(
+                text=message,
+                text_color=color,
+            )
+        except Exception:
+            pass
+
     # ==================================================================
     # Background worker(s)
     # ==================================================================
@@ -606,7 +962,7 @@ class CoolingPanel(ctk.CTkScrollableFrame):
         self._last_outlet = outlet
         self._pump = pump
         self._mode = mode
-        self._flow_rate = flow_rate/60
+        self._flow_rate = flow_rate / 60
         self._pwm = pwm
 
         self.lbl_inlet.configure(text=f"{inlet:.2f} °C")
@@ -630,14 +986,21 @@ class CoolingPanel(ctk.CTkScrollableFrame):
         )
         # Sync the manual slider position with the live PWM value.
         try:
-    # Only sync the slider while in AUTO mode
-         if self._mode == "AUTO":
-          self.slider_pwm.set(float(min(int(pwm), 255)))
-          self.lbl_pwm_set.configure(text=str(int(pwm)))
+            # Only sync the slider while in AUTO mode.
+            if self._mode == "AUTO":
+                self.slider_pwm.set(float(min(int(pwm), 255)))
+                self.lbl_pwm_set.configure(text=str(int(pwm)))
         except Exception:
-         pass
-        # Slider availability follows the current mode.
+            pass
+# Slider availability follows the current mode.
         self._update_pwm_control_state()
+
+# Feed data to the live graph dashboard.
+        if self.graph is not None:
+            try:
+                self.graph.add_reading(inlet, outlet, flow_rate, pwm)
+            except Exception:
+                pass
 
         if outlet >= 45.0 and not self._buzzer_latched:
             self._buzzer_latched = True
@@ -707,6 +1070,77 @@ class CoolingPanel(ctk.CTkScrollableFrame):
             except Exception:
                 pass
 
+# ==================================================================
+    # Live Graph Dashboard helpers
+    # ==================================================================
+    def _schedule_graph_update(self) -> None:
+        """Schedule periodic graph redraws while the panel is alive."""
+        if self.graph is None:
+            return
+        try:
+            self._graph_after_id = self.after(
+                GRAPH_UPDATE_INTERVAL_MS, self._on_graph_update
+            )
+        except Exception:
+            pass
+
+    def _on_graph_update(self) -> None:
+        """Redraw the live graph and reschedule the next tick."""
+        if self.graph is not None:
+            try:
+                self.graph.update()
+            except Exception:
+                pass
+        self._schedule_graph_update()
+
+    def _on_export_png(self) -> None:
+        """Save the current live graph as a PNG file."""
+        if self.graph is None:
+            self._log("Live graph is not available.")
+            return
+        try:
+            default_dir = EXPORT_DIR_DEFAULT
+            os.makedirs(default_dir, exist_ok=True)
+            default_name = os.path.join(
+                default_dir, f"cooling_graph_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+            )
+            path = filedialog.asksaveasfilename(
+                title="Save Graph as PNG",
+                defaultextension=".png",
+                initialfile=os.path.basename(default_name),
+                initialdir=default_dir,
+                filetypes=[("PNG image", "*.png")],
+            )
+            if path:
+                self.graph.save_as_png(path)
+                self._log(f"Graph saved to {path}.")
+        except Exception as exc:
+            self._log(f"Could not save PNG: {exc}")
+
+    def _on_export_pdf(self) -> None:
+        """Export the current live graph to a PDF file."""
+        if self.graph is None:
+            self._log("Live graph is not available.")
+            return
+        try:
+            default_dir = EXPORT_DIR_DEFAULT
+            os.makedirs(default_dir, exist_ok=True)
+            default_name = os.path.join(
+                default_dir, f"cooling_graph_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            )
+            path = filedialog.asksaveasfilename(
+                title="Export Graph to PDF",
+                defaultextension=".pdf",
+                initialfile=os.path.basename(default_name),
+                initialdir=default_dir,
+                filetypes=[("PDF document", "*.pdf")],
+            )
+            if path:
+                self.graph.export_pdf(path)
+                self._log(f"Graph exported to {path}.")
+        except Exception as exc:
+            self._log(f"Could not export PDF: {exc}")
+
     # ==================================================================
     # Lifecycle hooks (called by the host app)
     # ==================================================================
@@ -721,6 +1155,12 @@ class CoolingPanel(ctk.CTkScrollableFrame):
 
     def shutdown(self) -> None:
         """Stop all controller threads and close the CSV log."""
+        # Stop the AI data collector if it's running.
+        if self.ai_collector is not None:
+            try:
+                self.ai_collector.stop()
+            except Exception:
+                pass
         try:
             self.controller.shutdown()
         except Exception:
