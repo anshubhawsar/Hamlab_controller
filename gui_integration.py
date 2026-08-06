@@ -134,6 +134,30 @@ class CoolingPanel(ctk.CTkScrollableFrame):
         """Return a theme color by key (fallback to an empty string)."""
         return self._colors.get(key, fallback)
 
+    def _card_header(self, parent, icon: str, title: str, color: str) -> None:
+        """Draw a premium colored header bar at the top of a card.
+
+        Matches the ``GlassCard`` style used across the host app so the
+        cooling dashboard feels like a first-class part of the HMI.
+        """
+        header = ctk.CTkFrame(
+            parent,
+            fg_color=color,
+            corner_radius=10,
+            height=44,
+        )
+        header.pack(fill="x", padx=0, pady=0)
+        header.pack_propagate(False)
+        label = ctk.CTkLabel(
+            header,
+            text=f"{icon}  {title}",
+            font=("Arial", 14, "bold"),
+            text_color="#ffffff",
+            fg_color="transparent",
+            anchor="w",
+        )
+        label.pack(side="left", anchor="w", padx=16, pady=8)
+
     def _build_ui(self) -> None:
         """Create every widget of the cooling dashboard."""
         # Title card
@@ -202,7 +226,7 @@ class CoolingPanel(ctk.CTkScrollableFrame):
 
         self._build_controls_card(ctrl_card)
 
-# ------------------------------------------------------------------
+        # ------------------------------------------------------------------
         # Live Graph Dashboard card
         # ------------------------------------------------------------------
         # Always build the graph card. _build_graph_card() creates the
@@ -236,12 +260,13 @@ class CoolingPanel(ctk.CTkScrollableFrame):
 
     def _build_ai_card(self, parent) -> None:
         """Build the AI Learning data-collection card."""
-        ctk.CTkLabel(
+        # Premium colored header bar.
+        self._card_header(
             parent,
-            text="🧠 AI LEARNING - RL TRAINING DATA",
-            font=("Arial", 14, "bold"),
-            text_color=self._c("accent_blue", "#0052cc"),
-        ).pack(anchor="w", padx=20, pady=(14, 4))
+            "🧠",
+            "AI LEARNING - RL TRAINING DATA",
+            self._c("accent_purple", "#6a3d8f"),
+        )
 
         ctk.CTkLabel(
             parent,
@@ -254,7 +279,7 @@ class CoolingPanel(ctk.CTkScrollableFrame):
             wraplength=720,
             justify="left",
             text_color=self._c("text_secondary", "#3d4756"),
-        ).pack(anchor="w", padx=20, pady=(0, 10))
+        ).pack(anchor="w", padx=20, pady=(12, 10))
 
         # --- Row 1: Experiment ID + Material ---
         row1 = ctk.CTkFrame(parent, fg_color="transparent")
@@ -290,8 +315,8 @@ class CoolingPanel(ctk.CTkScrollableFrame):
             row1,
             values=list(AI_MATERIALS),
             fg_color=self._c("input_bg", "#ffffff"),
-            button_color=self._c("accent_blue", "#0052cc"),
-            button_hover_color=self._c("accent_blue", "#0052cc"),
+            button_color=self._c("accent_purple", "#6a3d8f"),
+            button_hover_color=self._c("accent_purple", "#6a3d8f"),
             text_color=self._c("input_text", "#0d1b2a"),
             dropdown_fg_color=self._c("bg_secondary", "#ffffff"),
             dropdown_hover_color=self._c("accent_blue_light", "#e3f0ff"),
@@ -384,15 +409,17 @@ class CoolingPanel(ctk.CTkScrollableFrame):
 
     def _build_graph_card(self, parent) -> None:
         """Build the Live Graph Dashboard card (Matplotlib canvas + export)."""
-        # Header row
+        # Premium colored header bar.
+        self._card_header(
+            parent,
+            "📈",
+            "LIVE GRAPH DASHBOARD",
+            self._c("accent_green", "#216e4e"),
+        )
+
+        # Header row (subtitle)
         header = ctk.CTkFrame(parent, fg_color="transparent")
-        header.pack(fill="x", padx=20, pady=(14, 4))
-        ctk.CTkLabel(
-            header,
-            text="📈 LIVE GRAPH DASHBOARD",
-            font=("Arial", 14, "bold"),
-            text_color=self._c("accent_blue", "#0052cc"),
-        ).pack(side="left")
+        header.pack(fill="x", padx=20, pady=(10, 4))
         ctk.CTkLabel(
             header,
             text="Last 10 minutes · updates every 1 s",
@@ -436,8 +463,8 @@ class CoolingPanel(ctk.CTkScrollableFrame):
             text="📄 Export to PDF",
             width=140,
             height=32,
-            fg_color=self._c("accent_green", "#216e4e"),
-            hover_color=self._c("accent_green", "#216e4e"),
+            fg_color=self._c("accent_orange", "#974f0c"),
+            hover_color=self._c("accent_orange", "#974f0c"),
             command=self._on_export_pdf,
             font=("Arial", 12, "bold"),
         )
@@ -445,6 +472,14 @@ class CoolingPanel(ctk.CTkScrollableFrame):
 
     def _build_connection_card(self, parent) -> None:
         """Build the top connection card (indicator, port dropdown, connect)."""
+        # Premium colored header bar.
+        self._card_header(
+            parent,
+            "🔌",
+            "CONNECTION & PORT",
+            self._c("accent_blue", "#0052cc"),
+        )
+
         # --- Connection status indicator ---
         status_frame = ctk.CTkFrame(parent, fg_color="transparent")
         status_frame.pack(fill="x", padx=20, pady=(16, 6))
@@ -520,6 +555,14 @@ class CoolingPanel(ctk.CTkScrollableFrame):
 
     def _build_telemetry_card(self, parent) -> None:
         """Build the telemetry card (two temperature readouts + state)."""
+        # Premium colored header bar.
+        self._card_header(
+            parent,
+            "🌡️",
+            "TELEMETRY",
+            self._c("accent_blue", "#0052cc"),
+        )
+
         metrics = ctk.CTkFrame(parent, fg_color="transparent")
         metrics.pack(fill="x", padx=20, pady=(16, 6))
 
@@ -639,15 +682,16 @@ class CoolingPanel(ctk.CTkScrollableFrame):
 
     def _build_controls_card(self, parent) -> None:
         """Build the control buttons card (Pump ON/OFF, AUTO mode, PWM slider)."""
-        ctk.CTkLabel(
+        # Premium colored header bar.
+        self._card_header(
             parent,
-            text="PUMP CONTROL",
-            font=("Arial", 14, "bold"),
-            text_color=self._c("text_primary", "#0d1b2a"),
-        ).pack(anchor="w", padx=20, pady=(14, 6))
+            "⚙️",
+            "PUMP CONTROL",
+            self._c("accent_orange", "#974f0c"),
+        )
 
         btns = ctk.CTkFrame(parent, fg_color="transparent")
-        btns.pack(fill="x", padx=20, pady=(0, 10))
+        btns.pack(fill="x", padx=20, pady=(16, 10))
 
         self.btn_pump_on = ctk.CTkButton(
             btns,
@@ -996,10 +1040,10 @@ class CoolingPanel(ctk.CTkScrollableFrame):
                 self.lbl_pwm_set.configure(text=str(int(pwm)))
         except Exception:
             pass
-# Slider availability follows the current mode.
+        # Slider availability follows the current mode.
         self._update_pwm_control_state()
 
-# Feed data to the live graph dashboard.
+        # Feed data to the live graph dashboard.
         if self.graph is not None:
             try:
                 self.graph.add_reading(inlet, outlet, flow_rate, pwm)
@@ -1074,7 +1118,7 @@ class CoolingPanel(ctk.CTkScrollableFrame):
             except Exception:
                 pass
 
-# ==================================================================
+    # ==================================================================
     # Live Graph Dashboard helpers
     # ==================================================================
     def _schedule_graph_update(self) -> None:
@@ -1169,3 +1213,4 @@ class CoolingPanel(ctk.CTkScrollableFrame):
             self.controller.shutdown()
         except Exception:
             pass
+
