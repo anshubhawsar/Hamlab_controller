@@ -4,3 +4,5 @@ matplotlib>=3.8.0
 numpy>=1.26.0
 fpdf2>=2.7.9
 pyinstaller>=6.0.0
+pyserial>=3.5
+

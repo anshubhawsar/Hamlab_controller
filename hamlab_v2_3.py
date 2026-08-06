@@ -28,6 +28,16 @@ try:
 except ImportError:
     FPDF = None
 
+# --- ESP32 COOLING SYSTEM INTEGRATION (additive / optional) ---
+# The cooling modules (serial_manager / cooling_controller / gui_integration)
+# are pure additions: if anything is missing the rest of the app keeps working.
+try:
+    from gui_integration import CoolingPanel
+    _COOLING_AVAILABLE = True
+except Exception:
+    CoolingPanel = None
+    _COOLING_AVAILABLE = False
+
 # --- THEME CONFIGURATION ---
 APP_NAME = "HAM LAB SMART CONTROLLER"
 APP_VERSION = "v2.4.6"
@@ -1928,6 +1938,7 @@ class ProHMI(ctk.CTk):
             ("waam", "WAAM", self.show_waam),
             ("pm", "Powder Metallurgy", self.show_pm),
             ("compare", "Compare", self.show_compare),
+            ("cooling", "Cooling", self.show_cooling),
             ("docs", "Documentation", self.show_docs),
         ]
 
@@ -1982,12 +1993,44 @@ class ProHMI(ctk.CTk):
         self.frame_compare = ComparisonPanel(self.main_container)
         self.frame_docs = DocumentationPanel(self.main_container)
 
+        # --- ESP32 Cooling System Panel (optional, additive) ---
+        self.frame_cooling = None
+        if _COOLING_AVAILABLE and CoolingPanel is not None:
+            try:
+                theme_palette = {
+                    "bg_primary": COLOR_BG_PRIMARY,
+                    "bg_secondary": COLOR_BG_SECONDARY,
+                    "bg_sidebar": COLOR_BG_SIDEBAR,
+                    "bg_tertiary": COLOR_BG_TERTIARY,
+                    "border_light": COLOR_BORDER_LIGHT,
+                    "text_primary": COLOR_TEXT_PRIMARY,
+                    "text_secondary": COLOR_TEXT_SECONDARY,
+                    "text_dim": COLOR_TEXT_DIM,
+                    "card_shadow": COLOR_CARD_SHADOW,
+                    "accent_blue": COLOR_ACCENT_BLUE,
+                    "accent_blue_light": COLOR_ACCENT_BLUE_LIGHT,
+                    "accent_green": COLOR_ACCENT_GREEN,
+                    "accent_green_light": COLOR_ACCENT_GREEN_LIGHT,
+                    "accent_orange": COLOR_ACCENT_ORANGE,
+                    "accent_orange_light": COLOR_ACCENT_ORANGE_LIGHT,
+                    "accent_red": COLOR_ACCENT_RED,
+                    "accent_red_light": COLOR_ACCENT_RED_LIGHT,
+                    "input_bg": COLOR_INPUT_BG,
+                    "input_text": COLOR_INPUT_TEXT,
+                    "input_border": COLOR_INPUT_BORDER,
+                }
+                self.frame_cooling = CoolingPanel(self.main_container, colors=theme_palette)
+                self.frame_cooling.start()
+            except Exception:
+                self.frame_cooling = None
+
         nav_callbacks = {
             "fsw": self.show_fsw,
             "pm": self.show_pm,
             "waam": self.show_waam,
             "compare": self.show_compare,
             "docs": self.show_docs,
+            "cooling": self.show_cooling,
         }
         self.frame_home = HomePanel(self.main_container, nav_callbacks=nav_callbacks)
 
@@ -1997,8 +2040,20 @@ class ProHMI(ctk.CTk):
                                             font=("Arial", 10), text_color="gray")
         self.copyright_label.pack(side="bottom", pady=2)
 
+        # Clean shutdown of the cooling system when the window closes.
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+
         self.show_home()
         self.after(1500, self.check_for_updates_async)
+
+    def _on_close(self):
+        """Handle the window-close event: stop cooling threads, then exit."""
+        try:
+            if self.frame_cooling is not None:
+                self.frame_cooling.shutdown()
+        except Exception:
+            pass
+        self.destroy()
 
     def toggle_theme(self):
         next_mode = "dark" if self.theme_switch.get() == 1 else "light"
@@ -2221,6 +2276,13 @@ class ProHMI(ctk.CTk):
     def show_compare(self): 
         self.select_frame(self.frame_compare)
         self._set_active_nav("compare")
+
+    def show_cooling(self):
+        if self.frame_cooling is not None:
+            self.select_frame(self.frame_cooling)
+            self._set_active_nav("cooling")
+        else:
+            messagebox.showinfo("Cooling System", "Cooling system module is not available.\n\nMake sure gui_integration.py and its dependencies (serial_manager.py, cooling_controller.py) are present.")
 
     def show_docs(self):
         self.select_frame(self.frame_docs)
